@@ -5,8 +5,6 @@
 - [Matic Stare](https://github.com/maticstare)
 - [Martin Starič](https://github.com/SpongeMartin)
 
-[comment]: <> (a topic by a group's own choice; this should have a clear foundation based on existing research - present a 10 sentence paragraph explaining the problem that is supported by at least two scientific references.)
-
 ## Starting point
 - [Gym Layout Modeling and Optimization](http://m.growingscience.com/beta/msl/5347-gym-layout-modeling-and-optimization.html)
 - [A review on crowd simulation and modeling](https://www.sciencedirect.com/science/article/pii/S1524070320300242?via%3Dihub)
