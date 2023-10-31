@@ -17,6 +17,9 @@ Through simulating gym-goer behavior, we aim to identify the most effective arra
 Our goal is to offer practical insights for gym owners, managers, and designers seeking to optimize their facility layout for the benefit of their clients and business success.
 
 ### Milestones
-- **20th of November, 2023**: formulated model of gym-goer behaviour
-- **18th of December, 2023**: simulations done
-- **8th January, 2024**: simulation analysis done
+- [**20th of November, 2023**: formulated model of gym-goer behaviour](https://github.com/andrejjocic/gymulator/milestone/1)
+- [**18th of December, 2023**: simulations done](https://github.com/andrejjocic/gymulator/milestone/2)
+- [**8th January, 2024**: simulation analysis done](https://github.com/andrejjocic/gymulator/milestone/3)
+
+
+
