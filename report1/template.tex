@@ -3,8 +3,8 @@
 % Note that the use of elements such as single-column equations
 % may affect the guide line number alignment. 
 
-\RequirePackage[english,slovene]{babel} % when writing in slovene
-%\RequirePackage[slovene,english]{babel} % when writing in english
+% \RequirePackage[english,slovene]{babel} % when writing in slovene
+\RequirePackage[slovene,english]{babel} % when writing in english
 
 \templatetype{pnasresearcharticle} % Choose template 
 % {pnasresearcharticle} = Template for a two-column research article
@@ -12,7 +12,7 @@
 % {pnasinvited} = Template for a PNAS invited submission
 
 \selectlanguage{slovene}
-\etal{in sod.} % comment out when writing in english
+% \etal{in sod.} % comment out when writing in english
 \renewcommand{\Authands}{ in } % comment out when writing in english
 \renewcommand{\Authand}{ in } % comment out when writing in english
 
@@ -25,7 +25,7 @@
 
 \graphicspath{{./fig/}}
 
-\title{Proceduralno generiranje tropskega otoka in koralnega grebena}
+\title{Simulation-driven gym layout optimization}
 
 % Use letters for affiliations, numbers to show equal authorship (if applicable) and to indicate the corresponding author
 \author{Andrej Jočić}
@@ -35,14 +35,14 @@
 \affil{Collective behaviour course research seminar report} 
 
 % Please give the surname of the lead author for the running footer
-\leadauthor{Novak} 
+\leadauthor{Jočić} 
 
 \selectlanguage{english}
 
 % Please add here a significance statement to explain the relevance of your work
 \significancestatement{Procedural generation of a tropic island and \\coral reef}{In computer graphics there is frequent need for displaying large vistas of natural looking terrain. Designing such terrain by hand is typically time consuming. With procedural generation, on the other hand, larger areas of natural looking terrain can be generated with or without minimal intervention in a relatively short time. In this work we present a process of procedural generation of a tropical island with the associated corral reef. We start by generating a heightmap for the base terrain. The heightmap is then transformed by simulating the processes of hydraulic and thermal erosion to achieve a more natural look of the terrain. As coral reefs often grow around tropical islands, we also simulate their growth as part of the last step. Real-time visualization is enabled during the simulation, so that one can observe the evolution of the terrain. Here we dynamically apply textures to the terrain based on its local characteristics. The result is a natural looking model of the textured tropical island and corral reef.}{Procedural generation | Terrain generation | Thermal and hydraulic erosion | Coral reef | Simulation | GPU}
 
-\selectlanguage{slovene}
+\selectlanguage{english}
 
 % Please include corresponding author, author contribution and author declaration information
 %\authorcontributions{Please provide details of author contributions here.}
@@ -74,16 +74,36 @@ V računalniški grafiki pogosto nastane potreba po prikazu večjih področij te
 \ifthenelse{\boolean{shortarticle}}{\ifthenelse{\boolean{singlecolumn}}{\abscontentformatted}{\abscontent}}{}
 
 % If your first paragraph (i.e. with the \dropcap) contains a list environment (quote, quotation, theorem, definition, enumerate, itemize...), the line after the list may have some extra indentation. If this is the case, add \parshape=0 to the end of the list environment.
-\dropcap{D}iplomsko delo prikazuje metode za proceduralno generiranje tropskega otoka, primernega za uporabo v računalniški igri. Omejimo se na generiranje in teksturiranje terena, brez postavljanja morebitnih ostalih objektov, kot so drevesa in skale. Ker je v primeru večjih terenov proceduralno generiranje mnogokrat računsko intenzivna operacija, posamezne korake implementiramo na grafični procesni enoti (GPE), ki je zaradi njene visoko paralelne arhitekture zmožna hitrega procesiranja velike količine podatkov. Najprej generiramo začetni teren, nato pa za bolj verodostojen videz simuliramo hidravlično in termično erozijo. Ker v tropskih morjih v okolici otokov običajno rastejo koralni grebeni, izvedemo tudi simulacijo rasti le-teh. Na teren lepimo teksture ustrezne njegovim značilnostim. 
+\section*{Introduction}
+\dropcap{T}he present work deals with gym layout optimisation.
+A common occurence in gyms at peak hours is over-crowding of popular equipment and lots of wandering around searching for a free machine.
+Through simulating gym-goer behavior, we aimed to identify the most effective arrangement of exercise equipment to improve the flow, accessibility, and overall customer satisfaction.
+Our goal is to offer practical insights for gym owners, managers, and designers seeking to optimize their facility layout for the benefit of their clients and business success.
+We limit ourseves to the case of muscle hypertrophy training with resistance exercises.
 
-Enega pomembnejših prispevkov na področju proceduralnega generiranja je naredil Ken Perlin. Predstavil je način generiranja šuma, ki ga danes imenujemo Perlinov šum \cite{perlin_noise_85}. Perlinov šum se uporablja na mnogo področjih, eno izmed njih pa je proceduralna gradnja terena. Perlin je kasneje predstavil še šum \emph{Simplex} \cite{simplex_noise_01}, ki je za izračun hitrejši in še dodatno izboljša videz. V delu za gradnjo začetnega terena uporabljamo slednjega, ker še danes predstavlja najboljši kompromis med hitrostjo izračuna, pomnilno potratnostjo in kvaliteto \cite{rose2016algorithms}.
+\subsection*{Strength training}
+A typical workout routine splits the body into several muscle groups, cycling through them on a per-workout basis. This rotation can be done on a weekly schedule, or the workouts can be weekday-independant for greater flexibility. Popular splits include:
+\begin{itemize}
+	\item \textbf{Push-pull-legs} (PPL) - Push muscles are those involved in pushing movements,
+	such as the chest, frontal deltoids (shoulders), and triceps. Pull muscles are those involved in pulling movements, such as the back musculature, rear deltoids, and biceps. Legs are the lower body muscles, such as the quadriceps, hamstrings, and calves.
+	\item \textbf{Upper-lower} - Upper body muscles are those above the waist, such as the chest, back, shoulders, and arms. Lower body muscles are those below the waist, such as the quadriceps, hamstrings, and calves.
+	\item \textbf{Full body} - All muscle groups are trained in every workout.
+\end{itemize}
+The exercises in a particular workout are then selected to stumulate each muscle in the chosen group, ideally cycling through them to avoid fatigue-induced form breakdown. Each individual exercise usually consists of 2-4 {\it sets} (where a movement is repeated some number of times), and short breaks in between.
 
-Musgrave, Kolb in Mace \cite{synthesis_first_89} so eni izmed prvih, ki so predstavili simuliranje erozije. Opisujejo tako termično kot tudi hidravlično erozijo in način prikaza generiranega terena. Hidravlična erozija simulira pretakanje vode po terenu, ki spodjeda material, ga prenaša v svojem toku in nato odlaga. Termična erozija pa zajema dejavnike, ki drobijo površino terena v drobir, ta pa nato drsi po strmih pobočjih. Simuliranje hidravlične erozije sta predstavila tudi Beneš in Forsbach \cite{benevs_first_02}. Mei, Decaudin in Hu \cite{benevs_fast_gpu_07} pa so prvi predstavili implementacijo hidravlične erozije iz \cite{benevs_first_02} na GPE. Jákó in Tóth \cite{jako_fast_gpu_11} sta dodatno opisala še implementacijo termične erozije na GPE. Generiranje terena s pomočjo hidravlične in termične erozije na GPE je v svojem diplomskem delu opisal tudi Maške \cite{maske_2013}. V tem delu uporabljamo drugačen pristop k generiranju začetnega terena kot ostali in po simulaciji erozije simuliramo še rast koralnega grebena ter na teren nanesemo teksture.
 
-Virov, ki prikazujejo simuliranje rasti koral z namenom vizualizacije v računalniški grafiki nismo našli. Po drugi strani pa smo našli vira, ki predstavljata model rasti koral in s tem koralnega grebena namenjen znanstvenim raziskavam \cite{nakamura_reef_model_07,nakamura_reef_simulation_11}. Z nekaj poenostavitvami smo ta model priredili našim potrebam.
+\subsection*{Related work}
 
-\section*{Metode}
-Za predstavitev terena smo uporabili višinsko karto (angl. \emph{heightmap}). To je rastrska slika, kjer vsak piksel predstavlja višino v pripadajoči točki na terenu. 
+
+\section*{Methods}
+
+\subsection*{Gym layout model}
+
+\subsection*{Gym-goer behaviour model}
+
+\subsection*{Optimisation criterion}
+
+\subsection*{Simulation}
 
 \subsection*{Generiranje začetnega terena}
 Ker je bil cilj generirati teren v obliki otoka smo želeli, da bo teren na sredini višinske karte višji kot ob robovih. To smo dosegli z generiranjem višinske karte, ki definira teren v obliki stožca z nelinearno klančino:
