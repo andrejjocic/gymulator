@@ -28,8 +28,8 @@
 \title{Simulation-driven gym layout optimization}
 
 % Use letters for affiliations, numbers to show equal authorship (if applicable) and to indicate the corresponding author
-\author{Andrej Jočić}
-\author{Matic Stare}
+\author{Andrej Jočić (m$\arctan$)}
+\author{Matic Stare (m$\arcsin$)}
 \author{Martin Krpan}
 
 \affil{Collective behaviour course research seminar report} 
@@ -51,15 +51,15 @@
 %\correspondingauthor{\textsuperscript{2}To whom correspondence should be addressed. E-mail: author.two\@email.com}
 
 % Keywords are not mandatory, but authors are strongly encouraged to provide them. If provided, please include two to five keywords, separated by the pipe symbol, e.g:
-\keywords{Proceduralno generiranje | Generiranje terena | Termalna in hidravlična erozija | Koralni greben | simulacija | GPE} 
+\keywords{TODO1 | TODO2} 
 
 \begin{abstract}
-V računalniški grafiki pogosto nastane potreba po prikazu večjih področij terena. Ročno oblikovanje le-tega je običajno časovno potratno. S proceduralnim generiranjem pa lahko ob minimalnih ročnih posegih ali celo brez njih ustvarimo večja področja terena z verodostojnim videzom v razmeroma kratkem času. V diplomskem delu predstavljamo proces preoceduralnega generiranja tropskega otoka. Začne se z generiranjem začetnega terena, sledi mu preoblikovanje s simuliranjem procesov hidravlične ter termične erozije katerima sledi še simulacija rasti koralnega grebena, ki se pogostokrat nahaja v neposredni okolici tropska otoka. Na teren dinamično nanašamo teksture glede na njegovo lokalne značilnosti in med simulacijo omogočamo vizualizacijo sprememb terena v realnem času. Končni rezultat je verodostojen model tropskega otoka z okoliškim koralnim grebenom ter ustreznimi teksturami.
+TODO
 \end{abstract}
 
 \dates{\textbf{\today}}
 \program{BM-RI}
-\vol{2018/19}
+\vol{2023/24}
 \no{CB:G1} % group ID
 %\fraca{FRIteza/201516.130}
 
@@ -93,17 +93,50 @@ The exercises in a particular workout are then selected to stumulate each muscle
 
 
 \subsection*{Related work}
+The only publication related to gym layout optimization we could find was ref. \cite{turcine2022gym}, which assumed all gym clients had fixed-order workout routines (including ones with weight loss as a goal) and optimised a circular gym layout to minimise backward movement. Unfortunately this does not give a good foundation for our work, as the assumptions differ too much from our model.
 
+Thus we started from a crowd modelling review \cite{yang2020crowd_modelling_review} for basic model design principles. We found two useful articles about incremental urban layout optimisation \cite{feng2016crowd_drive_layout_design, mathew2019urban_walkability} for inspiration.
 
 \section*{Methods}
 
-\subsection*{Gym layout model}
+\subsection*{Gym layout representation}
+For simplicity, we will represent a gym layout as a rectangular area with pre-set square equipment locations of equal size, distributed similarly as isles in a grocery store.
+Each location can be occupied by any piece of exercise equipment, and is never left empty.
+One corner of the area will serve as locker area entrance, where agents enter and exit the gym.
+
+Note that such a discretization does not allow us to model shared resources such as the free wights next to a set of benches, or compound machines such as a cable harness with multiple weight stacks.o
+Our set of supported machines won't include any multi-purpose equipment, such as a squat rack with a pull-up bar.
 
 \subsection*{Gym-goer behaviour model}
 
+When an agent enters the gym, we must first decide which muscle groups they will train in this session. This means first sampling from a distribution of training routines and then the potential kinds of workouts within that routine.
+
+As the type of weight training routine is greatly correlated with the gym-goer's gender, we first sample from a gender distribution with $P(gender = male) = p_m$. It may be realistic to vary $p_m$ over time, as a typical gym's gender balance tends to shift throughout the day.
+% NOTE: a je "gender" triggering za 2-variable distro? 
+
+Then, we must define marginal distributions of training routines given the agent's gender for the second sampling step.
+% TODO: distros
+% tip: 0.3 -> PPL, 0.2 -> full body, 0.5 -> chest biceps
+% cka: 0.9 -> sam noge, 0.1 -> upper-lower
+
+Finally, we must define marginal distributions of workouts given the training routine for the third sampling step.
+If we only ever simulate a single day, we can draw uniformly from the set of workouts in the given routine. In order to realistically multiple days in a row, however, our agents need to have a constant-size memory of their workout history in order to cycle through their entire routine.
+One caveat is the PPL routine, where naturally there is a probability $p_{sl} > 0$ of skipping leg day (as this takes a great deal of mental fortitude).
+
+An agent will enter the gym with a multiset of muscles to train (where multiplicity is necessary for muscles that will be trained on multiple pieces of equipment for diversity of stimulation). The agent's goal is to exhaust this multiset as quickly as possible and exit the gym. There must also be a maximum time limit, at which point the agent will leave regardless.
+
 \subsection*{Optimisation criterion}
 
+\begin{itemize}
+	\item sets per minute
+	\item crowdeness
+	\item ability to finish workout plan in available time
+	\item cost of equipment/installation? (input to optimizer?)
+\end{itemize}
+
 \subsection*{Simulation}
+
+We will use Python's Mesa library for simulation, analysis, and visualization of agent-based models.
 
 \subsection*{Generiranje začetnega terena}
 Ker je bil cilj generirati teren v obliki otoka smo želeli, da bo teren na sredini višinske karte višji kot ob robovih. To smo dosegli z generiranjem višinske karte, ki definira teren v obliki stožca z nelinearno klančino:
