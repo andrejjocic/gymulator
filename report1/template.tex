@@ -89,7 +89,7 @@ A typical workout routine splits the body into several muscle groups, cycling th
 	\item \textbf{Upper-lower} - Upper body muscles are those above the waist, such as the chest, back, shoulders, and arms. Lower body muscles are those below the waist, such as the quadriceps, hamstrings, and calves.
 	\item \textbf{Full body} - All muscle groups are trained in every workout.
 \end{itemize}
-The exercises in a particular workout are then selected to stumulate each muscle in the chosen group, ideally cycling through them to avoid fatigue-induced form breakdown. Each individual exercise usually consists of 2-4 {\it sets} (where a movement is repeated some number of times), and short breaks in between.
+The exercises in a particular workout are then selected to stumulate each muscle in the chosen group, ideally cycling through them to avoid fatigue-induced form breakdown. Each individual exercise usually consists of 2-4 {\it sets} (where a movement is repeated some number of times), and short breaks in between. These breaks facilitate parallel use of gym equipment by (typically) up to two people, where one works out while the other rests. Note that this might involve time-consuming weight adjustment in between sets in case of differing strength levels, depending on the type of machine.
 
 
 \subsection*{Related work}
@@ -104,26 +104,20 @@ For simplicity, we will represent a gym layout as a rectangular area with pre-se
 Each location can be occupied by any piece of exercise equipment, and is never left empty.
 One corner of the area will serve as locker area entrance, where agents enter and exit the gym.
 
-Note that such a discretization does not allow us to model shared resources such as the free wights next to a set of benches, or compound machines such as a cable harness with multiple weight stacks.o
+Note that such a discretization does not allow us to model shared resources such as the free wights next to a set of benches, or compound machines such as a cable harness with multiple weight stacks.
 Our set of supported machines won't include any multi-purpose equipment, such as a squat rack with a pull-up bar.
 
 \subsection*{Gym-goer behaviour model}
 
-When an agent enters the gym, we must first decide which muscle groups they will train in this session. This means first sampling from a distribution of training routines and then the potential kinds of workouts within that routine.
+\subsubsection*{Customer pool generation}
+A simulation cycle (eg. one week of traffic) will begin with generating a pool of customers and their workout routines. We will sample from a small pre-defined set of routines with some probability distribution. For a start, we will parametrise the distribution ad hoc, based on our observations of people in our local gyms.
+Each agent will then cycle through the muscle groups in their routine on each consecutive workout until the end of the simulation.
+The rate at which agents enter the gym will vary throughout the day, with a peak during the evening hours (this peak should be especially pronounced on work days).
 
-As the type of weight training routine is greatly correlated with the gym-goer's gender, we first sample from a gender distribution with $P(gender = male) = p_m$. It may be realistic to vary $p_m$ over time, as a typical gym's gender balance tends to shift throughout the day.
-% NOTE: a je "gender" triggering za 2-variable distro? 
-
-Then, we must define marginal distributions of training routines given the agent's gender for the second sampling step.
-% TODO: distros
-% tip: 0.3 -> PPL, 0.2 -> full body, 0.5 -> chest biceps
-% cka: 0.9 -> sam noge, 0.1 -> upper-lower
-
-Finally, we must define marginal distributions of workouts given the training routine for the third sampling step.
-If we only ever simulate a single day, we can draw uniformly from the set of workouts in the given routine. In order to realistically multiple days in a row, however, our agents need to have a constant-size memory of their workout history in order to cycle through their entire routine.
-One caveat is the PPL routine, where naturally there is a probability $p_{sl} > 0$ of skipping leg day (as this takes a great deal of mental fortitude).
-
-An agent will enter the gym with a multiset of muscles to train (where multiplicity is necessary for muscles that will be trained on multiple pieces of equipment for diversity of stimulation). The agent's goal is to exhaust this multiset as quickly as possible and exit the gym. There must also be a maximum time limit, at which point the agent will leave regardless.
+\subsubsection*{Workout simulation}
+An agent will enter the gym with a multiset of muscles to train (where multiplicity is necessary for muscles that will be trained on multiple pieces of equipment for diversity of stimulation). The agent's goal is to exhaust this multiset as quickly as possible and exit the gym.
+These multisets will be constructed ad hoc, in keeping with general workout programming practice. For example, a push workout could be associated with $\{chest, chest, triceps, frontal deltoids\}$.
+There must also be a maximum time limit, at which point the agent will leave even if they have not finished their workout (due to gym traffic congestion).
 
 \subsection*{Optimisation criterion}
 
