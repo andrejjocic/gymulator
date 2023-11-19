@@ -76,24 +76,24 @@ TODO
 % If your first paragraph (i.e. with the \dropcap) contains a list environment (quote, quotation, theorem, definition, enumerate, itemize...), the line after the list may have some extra indentation. If this is the case, add \parshape=0 to the end of the list environment.
 \section*{Introduction}
 \dropcap{T}he present work deals with gym layout optimisation.
-A common occurence in gyms at peak hours is over-crowding of popular equipment and lots of wandering around searching for a free machine.
+A common occurrence in gyms during peak hours is over-crowding of popular equipment and lots of wandering around searching for a free machine.
 Through simulating gym-goer behavior, we aimed to identify the most effective arrangement of exercise equipment to improve the flow, accessibility, and overall customer satisfaction.
 Our goal is to offer practical insights for gym owners, managers, and designers seeking to optimize their facility layout for the benefit of their clients and business success.
-We limit ourseves to the case of muscle hypertrophy training with resistance exercises.
+We limit ourselves to the case of muscle hypertrophy training with resistance exercises.
 
 \subsection*{Strength training}
-A typical workout routine splits the body into several muscle groups, cycling through them on a per-workout basis. This rotation can be done on a weekly schedule, or the workouts can be weekday-independant for greater flexibility. Popular splits include:
+A typical workout routine splits the body into several muscle groups, cycling through them on a per-workout basis. This rotation can be done on a weekly schedule, or the workouts can be weekday-independent for greater flexibility. Popular splits include:
 \begin{itemize}
 	\item \textbf{Push-pull-legs} (PPL) - Push muscles are those involved in pushing movements,
 	such as the chest, frontal deltoids (shoulders), and triceps. Pull muscles are those involved in pulling movements, such as the back musculature, rear deltoids, and biceps. Legs are the lower body muscles, such as the quadriceps, hamstrings, and calves.
 	\item \textbf{Upper-lower} - Upper body muscles are those above the waist, such as the chest, back, shoulders, and arms. Lower body muscles are those below the waist, such as the quadriceps, hamstrings, and calves.
 	\item \textbf{Full body} - All muscle groups are trained in every workout.
 \end{itemize}
-The exercises in a particular workout are then selected to stumulate each muscle in the chosen group, ideally cycling through them to avoid fatigue-induced form breakdown. Each individual exercise usually consists of 2-4 {\it sets} (where a movement is repeated some number of times), and short breaks in between. These breaks facilitate parallel use of gym equipment by (typically) up to two people, where one works out while the other rests. Note that this might involve time-consuming weight adjustment in between sets in case of differing strength levels, depending on the type of machine.
+The exercises in a particular workout are then selected to stimulate each muscle in the chosen group, ideally cycling through them to avoid fatigue-induced form breakdown. Each individual exercise usually consists of 2-4 {\it sets} (where a movement is repeated some number of times), and short breaks in between. These breaks facilitate parallel use of gym equipment by (typically) up to two people, where one works out while the other rests. Note that this might involve time-consuming weight adjustment in between sets in case of differing strength levels, depending on the type of machine.
 
 
 \subsection*{Related work}
-The only publication related to gym layout optimization we could find was ref. \cite{turcine2022gym}, which assumed all gym clients had fixed-order workout routines (including ones with weight loss as a goal) and optimised a circular gym layout to minimise backward movement. Unfortunately this does not give a good foundation for our work, as the assumptions diverge too far from what we are trying to model.
+The only publication related to gym layout optimization we could find was ref. \cite{turcine2022gym}, which assumed all gym clients had fixed-order workout routines (including ones with weight loss as a goal) and optimised a circular gym layout to minimise backward movement. Unfortunately, this does not give a good foundation for our work, as the assumptions diverge too far from what we are trying to model.
 
 Thus we started from a crowd modelling review \cite{yang2020crowd_modelling_review} for basic model design principles. We also found two useful articles about incremental urban layout optimisation \cite{feng2016crowd_drive_layout_design, mathew2019urban_walkability} for inspiration.
 
@@ -102,15 +102,15 @@ Thus we started from a crowd modelling review \cite{yang2020crowd_modelling_revi
 \subsection*{Gym layout representation}
 For simplicity, we will represent a gym layout as a rectangular area with pre-set square equipment locations of equal size, distributed similarly as isles in a grocery store.
 Each location can be occupied by any piece of exercise equipment, and is never left empty.
-One corner of the area will serve as locker area entrance, where agents enter and exit the gym.
+One corner of the area will serve as the locker area entrance, where agents enter and exit the gym.
 
-Note that such a discretization does not allow us to model shared resources such as the free wights next to a set of benches, or compound machines such as a cable harness with multiple weight stacks.
+Note that such a discretization does not allow us to model shared resources such as the free weights next to a set of benches, or compound machines such as a cable harness with multiple weight stacks.
 Our set of supported machines won't include any multi-purpose equipment, such as a squat rack with a pull-up bar.
 
 \subsection*{Gym-goer behaviour model}
 
 \subsubsection*{Customer pool generation}
-A simulation cycle (eg. one week of traffic) will begin with generating a pool of customers and their workout routines. We will sample from a small pre-defined set of routines with some probability distribution. For a start, we will parametrise the distribution ad hoc, based on our observations of people in our local gyms.
+A simulation cycle (eg. one week of traffic) will begin with generating a pool of customers and their workout routines. We will sample from a small, pre-defined set of routines with some probability distribution. For a start, we will parametrise the distribution ad hoc, based on our observations of people in our local gyms.
 Each agent will then cycle through the muscle groups in their routine on each consecutive workout until the end of the simulation.
 The rate at which agents enter the gym will vary throughout the day, with a peak during the evening hours (this peak should be especially pronounced on work days).
 
@@ -119,7 +119,7 @@ An agent will enter the gym with a multiset of muscles to train (where multiplic
 These multisets will be constructed ad hoc, in keeping with general workout programming practice. For example, a push workout could be associated with $\{chest, chest, triceps, frontal deltoids\}$.
 There must also be a maximum time limit, at which point the agent will leave even if they have not finished their workout (due to gym traffic congestion).
 
-To select workout equipment, an agent will engage in something similar to foraging behavour, looking for a machine that will help them exhaust the goal multiset. There will have to be a built-in preference for free machines even if it means greater travel distance, as working in with someone is usually left as a last resort.
+To select workout equipment, an agent will engage in something similar to foraging behaviour, looking for a machine that will help them exhaust the goal multiset. There will have to be a built-in preference for free machines even if it means greater travel distance, as working in with someone is usually left as a last resort.
 The actual movement will proceed on a pre-defined exploration path around the gym, with the agent continually checking for free machines within some radius.
 
 
@@ -130,10 +130,10 @@ The actual movement will proceed on a pre-defined exploration path around the gy
 The quality of a layout will be measured by the following metrics:
 \begin{itemize}
 	\item average sets performed per minute,
-	\item local gym crowdeness, and
-	\item ability to finish workout plan in available time.
+	\item local gym crowdedness, and
+	\item ability to finish each workout plan in available time.
 \end{itemize}
-We might also consider the cost of equipment (and its installation), though this is difficult to estimate in general and might this make more sense as an input to our optimiser, given by a gym owner.
+We might also consider the cost of equipment (and its installation), though this is difficult to estimate in general and this might make more sense as an input to our optimiser, given by a gym owner.
 
 \subsubsection*{Optimisation algorithm}
 
