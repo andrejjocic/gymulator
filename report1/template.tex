@@ -119,7 +119,8 @@ An agent will enter the gym with a multiset of muscles to train (where multiplic
 These multisets will be constructed ad hoc, in keeping with general workout programming practice. For example, a push workout could be associated with $\{chest, chest, triceps, frontal deltoids\}$.
 There must also be a maximum time limit, at which point the agent will leave even if they have not finished their workout (due to gym traffic congestion).
 
-To select workout equipment, an agent will engage in something similar to foraging behavour, looking for a machine that will help them exhaust the goal multiset. There will have to be a built-in preference for free machines even if it means greater travel distance, as working in with someone is usually left as a last resort. The actual movement remains to be modelled.
+To select workout equipment, an agent will engage in something similar to foraging behavour, looking for a machine that will help them exhaust the goal multiset. There will have to be a built-in preference for free machines even if it means greater travel distance, as working in with someone is usually left as a last resort.
+The actual movement will proceed on a pre-defined exploration path around the gym, with the agent continually checking for free machines within some radius.
 
 
 \subsection*{Layout optimisation}
