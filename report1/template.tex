@@ -124,20 +124,19 @@ To select workout equipment, an agent will engage in something similar to foragi
 
 \subsection*{Layout optimisation}
 
-\subsubsection*{Fitness function} % he he
+\subsubsection*{Objective function}
 
+The quality of a layout will be measured by the following metrics:
 \begin{itemize}
-	\item sets per minute
-	\item crowdeness
-	\item ability to finish workout plan in available time
-	\item cost of equipment/installation? (input to optimizer?)
+	\item average sets performed per minute,
+	\item local gym crowdeness, and
+	\item ability to finish workout plan in available time.
 \end{itemize}
+We might also consider the cost of equipment (and its installation), though this is difficult to estimate in general and might this make more sense as an input to our optimiser, given by a gym owner.
 
 \subsubsection*{Optimisation algorithm}
-\begin{itemize}
-	\item genetic algorithms? (given the right kind of layout representation)
-	\item monte carlo something something
-\end{itemize}
+
+We will begin the opitimisation with a random layout (or set of layouts) and apply some local optimisation. Given the right kind of layout, we could try genetic algorithms. Alternatively, we will consider the Metropolis-Hastings algorithm which was successfully applied to urban layout optimisation \cite{feng2016crowd_drive_layout_design,mathew2019urban_walkability}.
 
 
 \subsection*{Simulation}
