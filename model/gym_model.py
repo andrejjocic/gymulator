@@ -30,6 +30,8 @@ class GymRat(mesa.Agent):
 
 
 class Gym(mesa.Model):
+    Machine = Enum("Machine", "BENCH_PRESS SQUAT_RACK LEG_PRESS LAT_PULLDOWN")
+
     def __init__(self, num_trainees):
         self.grid = mesa.space.MultiGrid(widht=10, height=10, torus=False) # TODO: actual gym layout
         self.schedule = mesa.time.RandomActivation(self) # do we need staged activation?
