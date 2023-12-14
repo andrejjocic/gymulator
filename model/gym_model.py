@@ -1,9 +1,14 @@
 import mesa
 from enum import Enum, auto
 from typing import List
+from collections import Counter
+from transitions import Machine
 
 class GymRat(mesa.Agent):
     state: 'GymRat.State'
+    training_queue: Counter
+    """muscle -> number of exercises left to do for that muscle"""
+
 
     class State(Enum):
         SEARCHING = auto()
@@ -14,10 +19,42 @@ class GymRat(mesa.Agent):
         RESTING = auto()
         """resting between sets"""
 
+    Workout = Enum("Workout", "PUSH PULL LEGS")
 
-    def __init__(self, unique_id, model):
+    Muscle = Enum("Muscle",
+        names= """
+        BICEPS TRICEPS
+        FRONT_DELTS SIDE_DELTS REAR_DELTS
+        TRAPS LATS
+        QUADS HAMSTRINGS GLUTES CALVES"""
+    )
+
+
+    def __init__(self, unique_id, model, workout: 'Workout'):
         super().__init__(unique_id, model)
         self.state = GymRat.State.SEARCHING
+        match workout:
+            case GymRat.Workout.PUSH:
+                self.training_queue = Counter({
+                    GymRat.Muscle.CHEST: 2,
+                    GymRat.Muscle.TRICEPS: 1,
+                    GymRat.Muscle.FRONT_DELTS: 1,
+                    GymRat.Muscle.SIDE_DELTS: 1,
+                })
+            case GymRat.Workout.PULL:
+                self.training_queue = Counter({
+                    GymRat.Muscle.LATS: 2,
+                    GymRat.Muscle.BICEPS: 1,
+                    GymRat.Muscle.REAR_DELTS: 1,
+                    GymRat.Muscle.TRAPS: 1,
+                })
+            case GymRat.Workout.LEGS:
+                self.training_queue = Counter({
+                    GymRat.Muscle.QUADS: 2,
+                    GymRat.Muscle.HAMSTRINGS: 1,
+                    GymRat.Muscle.GLUTES: 1,
+                    GymRat.Muscle.CALVES: 1,
+                })
 
     def advance_state(self):
         # TODO: implement state machine
