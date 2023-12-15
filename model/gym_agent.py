@@ -10,7 +10,6 @@ from typing import List, Iterator, Optional, Dict, Any, Set
 class State(Enum):
     SEARCHING = auto()
     """looking for a machine to use"""
-    # WARMING_UP = auto()
     WORKING_OUT = auto()
     """doing a set"""
     RESTING = auto()
@@ -86,6 +85,8 @@ class GymRat(mesa.Agent):
             
     def field_of_view(self, diagonals=True, radius=1) -> Iterator[space.Coordinate]:
         """the area in which the agent can see gym equipment"""
+        # NOTE: radius > 1 means the agent will "teleport" to a machine, but this actually sort of makes sense:
+        # if another (polite) trainee saw them moving to the machine, they wouldn't try to race them to it
         yield from self.model.agent_layer.iter_neighborhood(self.pos, moore=diagonals, include_center=False, radius=radius)
 
     def move_to(self, new_pos: space.Coordinate):
