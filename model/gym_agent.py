@@ -148,10 +148,11 @@ class GymRat(mesa.Agent):
 
     @property
     def portrayal(self) -> Dict[str, Any]:
+        star_points = 5
         return {
             "s": 100,
             "color": self.state.marker_color,
             "alpha": 0.5,
             # "marker": "2", # tri_up
-            "marker": (5, 1, self.random.uniform(0, 360)) # A star-like symbol with 5 sides, rotated by angle.
+            "marker": (star_points, 1, self.random.uniform(0, 360 / star_points)) # A star-like symbol rotated by angle.
         }

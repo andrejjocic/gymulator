@@ -4,7 +4,8 @@ import mesa.space as space
 from enum import Enum, auto
 import numpy as np
 import copy
-from typing import List, Iterator, Optional, Dict, Any
+import math
+from typing import List, Iterator, Optional, Dict, Any, Set, Tuple
 
 
 class Equipment(Enum):
@@ -90,13 +91,15 @@ class Gym(mesa.Model):
     agent_layer: space._Grid
     equipment_layer: np.ndarray[Optional[Equipment]]
 
-    def __init__(self, num_trainees: int, spawn_location: space.Coordinate = (0, 0)):
+    def __init__(self, num_trainees: int, machine_density: float, spawn_location: space.Coordinate = (0, 0)):
         self.num_agents = num_trainees
 
-        self.equipment_layer = np.array([ # TODO: read layout from file / data structure (or generate randomly?)
-            [None] * len(Equipment), # corridor
-            list(Equipment) # all the machines
-        ]).T
+        # TODO: read layout from file / data structure 
+        # self.equipment_layer = np.array([ 
+        #     [None] * len(Equipment), # corridor
+        #     list(Equipment) # all the machines
+        # ]).T
+        self.equipment_layer, spawn_location = self.build_random_layout(machine_density=machine_density)
         if self.equipment_layer[spawn_location] is not None:
             raise ValueError(f"Spawn location {spawn_location} is occupied by {self.equipment_layer[spawn_location]}")
         
@@ -120,7 +123,27 @@ class Gym(mesa.Model):
         self.datacollector = mesa.datacollection.DataCollector(model_reporters={
             "Searching": lambda m: sum(1 for a in m.agents if a.state == agent.State.SEARCHING)
         })
-        
+    
+    def build_random_layout(self, machine_copies=2, machine_density=1/2) -> Tuple[np.ndarray[Optional[Equipment]], space.Coordinate]:
+        """generate a random layout of all the machines (each machine appears twice by default)
+        - machine_density = (number of machines) / (number of cells)
+        - machine_copies = number of copies of each machine
+        - returns: layout, valid spawn location"""
+
+        machines = list(Equipment) * machine_copies
+        total_cells = math.ceil(len(machines) / machine_density)
+        rows = math.ceil(math.sqrt(total_cells))
+        cols = math.ceil(total_cells / rows)
+
+        coords = [(y, x) for y in range(rows) for x in range(cols)]
+        self.random.shuffle(coords)
+
+        layout = np.full((rows, cols), None, dtype=Equipment)
+        for i, machine in enumerate(machines):
+            layout[coords[i]] = machine # FIXME: this can create unreachable machines
+
+        return layout, coords[i + 1]
+    
 
     @property
     def running(self) -> bool:
