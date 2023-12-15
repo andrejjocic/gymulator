@@ -58,6 +58,7 @@ class Equipment(Enum):
 
 class EquipmentAgent(mesa.Agent):
     """piece of equipment, wrapped into an agent (for visualization purposes)"""
+    model: 'Gym'
 
     def __init__(self, unique_id: int, model: 'Gym', type: Equipment):
         super().__init__(unique_id, model)
@@ -65,9 +66,19 @@ class EquipmentAgent(mesa.Agent):
 
     @property
     def portrayal(self) -> Dict[str, Any]:
+        # try:
+        #     occupant = next(self.model.agent_layer.iter_cell_list_contents(self.pos))
+        #     print(f"using {self}: {occupant}")
+        #     free = False
+        # except StopIteration:
+        #     free = True
+        free = self.model.agent_layer.is_cell_empty(self.pos)
+
         return {
-            "size": 30,
-            "color": "black",
+            "s": 40,
+            "color": "green" if free else "red",
+            "alpha": 1,
+            "marker": "p" # pentagon
         }
 
 
@@ -122,7 +133,7 @@ class Gym(mesa.Model):
     @property
     def space(self) -> space._Grid:
         """space of gym elements (required by mesa visualization functions)"""
-        elements = copy.copy(self.agent_layer) # need deepcopy?
+        elements = copy.deepcopy(self.agent_layer) # need deepcopy?
         i = self.num_agents
 
         for cell, val in np.ndenumerate(self.equipment_layer):

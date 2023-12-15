@@ -4,6 +4,7 @@ import mesa.space as space
 
 from enum import Enum, auto
 from collections import Counter
+import math
 from typing import List, Iterator, Optional, Dict, Any, Set
 
 
@@ -102,7 +103,6 @@ class GymRat(mesa.Agent):
 
     def step(self):
         """advance the agent's state machine"""
-        print(self)
         if self.transition_timer is not None:
             self.transition_timer -= 1
         
@@ -149,6 +149,9 @@ class GymRat(mesa.Agent):
     @property
     def portrayal(self) -> Dict[str, Any]:
         return {
-            "size": 100,
+            "s": 100,
             "color": self.state.marker_color,
+            "alpha": 0.5,
+            # "marker": "2", # tri_up
+            "marker": (5, 1, self.random.uniform(0, 360)) # A star-like symbol with 5 sides, rotated by angle.
         }
