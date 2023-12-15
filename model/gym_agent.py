@@ -1,10 +1,10 @@
 import mesa
-from gym_model import Gym
+from gym_model import Gym, Equipment
 import mesa.space as space
 
 from enum import Enum, auto
 from collections import Counter
-from typing import List, Iterator, Optional, Dict, Any
+from typing import List, Iterator, Optional, Dict, Any, Set
 
 
 class State(Enum):
@@ -16,7 +16,16 @@ class State(Enum):
     RESTING = auto()
     """resting between sets"""
 
-Routine = Enum("Routine", "PUSH PULL LEGS TEST") # TODO: remove TEST
+    @property
+    def marker_color(self) -> str:
+        match self:
+            case State.SEARCHING: return "blue"
+            case State.WORKING_OUT: return "red"
+            case _:
+                raise NotImplementedError(f"color of {self} not specified")
+            
+
+Routine = Enum("Routine", "PUSH PULL LEGS")
 
 Muscle = Enum("Muscle",
     names= """
@@ -31,15 +40,22 @@ class GymRat(mesa.Agent):
     unique_id: int
     model: Gym
     state: State
+    transition_timer: Optional[int]
+    """number of steps left until the agent transitions to the next state"""
+    routine: Routine
+    used_equipment: Set[Equipment]
     training_queue: Counter
     """muscle -> number of exercises left to do for that muscle"""
-    # TODO: add history of used machines (to make sure the same machine isn't used twice in a workout)
 
-    def __init__(self, unique_id: int, model: Gym, routine: Routine = Routine.TEST):
+    def __init__(self, unique_id: int, model: Gym, routine: Optional[Routine] = None):
         super().__init__(unique_id, model)
         self.state = State.SEARCHING
+        self.transition_timer = None
 
-        match routine:
+        self.routine = self.random.choice(list(Routine)) if routine is None else routine
+        self.used_equipment = set()
+
+        match self.routine:
             case Routine.PUSH:
                 self.training_queue = Counter({
                     Muscle.CHEST: 2,
@@ -61,10 +77,6 @@ class GymRat(mesa.Agent):
                     Muscle.GLUTES: 1,
                     Muscle.CALVES: 1,
                 })
-            case Routine.TEST:
-                self.training_queue = Counter({
-                    Muscle.CHEST: 1,
-                })
             case _:
                 raise ValueError(f"Unsupported workout routine: {routine}")
             
@@ -79,27 +91,63 @@ class GymRat(mesa.Agent):
     def move_to(self, new_pos: space.Coordinate):
         self.model.agent_layer.move_agent(self, new_pos)
 
+    
+    # NOTE: use self.model.random for random choices / time intervals
+    
+    def exercise_duration(self) -> int:
+        """number of steps to perform an exercise (all sets)"""
+        # NOTE: one tick is the amount of time it takes to move between two adjacent cells
+        return 5 # TODO: make this random (and sensible)
+
     def step(self):
         """advance the agent's state machine"""
-        # NOTE: use self.model.random for random choices / time intervals, not random.random or np.rand
         print(self)
+        if self.transition_timer is not None:
+            self.transition_timer -= 1
         
         match self.state:
-            case State.SEARCHING:
-                free_space = [cell for cell in self.field_of_view() if self.model.equipment_layer[cell] is None]
-                # print(f"free space from {self.pos}: {free_space}")
-                self.move_to(self.random.choice(free_space))
-                # TODO: follow exploration path (not random)
-                # TODO: go to a free machine, if any
+            case State.SEARCHING:   
+                fov = list(self.field_of_view())
+                for cell in fov:
+                    if (machine := self.model.equipment_layer[cell]) is not None:
+                        if machine in self.used_equipment:
+                            continue
+                        if self.training_queue[machine.muscle] > 0:
+                            self.move_to(cell) # NOTE: without staged activation, maybe this can cause multiple agents to move to the same machine ??
+                            self.state = State.WORKING_OUT
+                            self.transition_timer = self.exercise_duration()
+                            
+                            self.training_queue[machine.muscle] -= 1
+                            self.used_equipment.add(machine)
+                            break
+                else:
+                    free_space = [cell for cell in fov if self.model.equipment_layer[cell] is None]
+                    # TODO: follow exploration path (not random)
+                    self.move_to(self.random.choice(free_space))
+
+            case State.WORKING_OUT:
+                if self.transition_timer == 0:
+                    if self.finished_workout:
+                        self.model.schedule.remove(self)
+                    else:
+                        self.state = State.SEARCHING
+                        self.transition_timer = None
             case _:
                 raise NotImplementedError(f"State {self.state} not implemented")
+            
+    @property
+    def finished_workout(self) -> bool:
+        return all(count == 0 for count in self.training_queue.values())
 
     def __repr__(self) -> str:
-        return f"Agent {self.unique_id} @ {self.pos} ({self.state.name})"
+        rep = f"{self.pos}: {self.routine.name}Rat<{self.unique_id}>: {self.state.name}"
+        if self.transition_timer is not None:
+            rep += f" ({self.transition_timer})"
+        return rep
 
     @property
     def portrayal(self) -> Dict[str, Any]:
         return {
-            "size": 15,
-            "color": ["green", "red", "gray"][self.state.value - 1],
+            "size": 100,
+            "color": self.state.marker_color,
         }
