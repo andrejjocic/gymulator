@@ -1,3 +1,9 @@
+# python stuff
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+
 # library tutorials
 mesa*tutorial.ipynb
 

@@ -1,92 +1,60 @@
 import mesa
+import mesa.space as space
+
 from enum import Enum, auto
-from typing import List
-from collections import Counter
-from transitions import Machine
-
-class GymRat(mesa.Agent):
-    state: 'GymRat.State'
-    training_queue: Counter
-    """muscle -> number of exercises left to do for that muscle"""
-
-
-    class State(Enum):
-        SEARCHING = auto()
-        """looking for a machine to use"""
-        # WARMING_UP = auto()
-        WORKING_OUT = auto()
-        """doing a set"""
-        RESTING = auto()
-        """resting between sets"""
-
-    Workout = Enum("Workout", "PUSH PULL LEGS")
-
-    Muscle = Enum("Muscle",
-        names= """
-        BICEPS TRICEPS
-        FRONT_DELTS SIDE_DELTS REAR_DELTS
-        TRAPS LATS
-        QUADS HAMSTRINGS GLUTES CALVES"""
-    )
-
-
-    def __init__(self, unique_id, model, workout: 'Workout'):
-        super().__init__(unique_id, model)
-        self.state = GymRat.State.SEARCHING
-        match workout:
-            case GymRat.Workout.PUSH:
-                self.training_queue = Counter({
-                    GymRat.Muscle.CHEST: 2,
-                    GymRat.Muscle.TRICEPS: 1,
-                    GymRat.Muscle.FRONT_DELTS: 1,
-                    GymRat.Muscle.SIDE_DELTS: 1,
-                })
-            case GymRat.Workout.PULL:
-                self.training_queue = Counter({
-                    GymRat.Muscle.LATS: 2,
-                    GymRat.Muscle.BICEPS: 1,
-                    GymRat.Muscle.REAR_DELTS: 1,
-                    GymRat.Muscle.TRAPS: 1,
-                })
-            case GymRat.Workout.LEGS:
-                self.training_queue = Counter({
-                    GymRat.Muscle.QUADS: 2,
-                    GymRat.Muscle.HAMSTRINGS: 1,
-                    GymRat.Muscle.GLUTES: 1,
-                    GymRat.Muscle.CALVES: 1,
-                })
-
-    def advance_state(self):
-        # TODO: implement state machine
-        # NOTE: use self.model.random for random time intervals, not random.random()!
-        ...
-
-    def step(self):
-        self.advance_state()
-        # TODO: branch on state
+import numpy as np
+from typing import List, Iterator, Optional, Dict, Any
 
 
 class Gym(mesa.Model):
-    Machine = Enum("Machine", "BENCH_PRESS SQUAT_RACK LEG_PRESS LAT_PULLDOWN")
+    Equipment = Enum("Equipment", "BENCH_PRESS SQUAT_RACK LEG_PRESS LAT_PULLDOWN") # TODO: add more 
+    # TODO: mapping from machine to muscle (limit to one for now)
+    # - maybe machines should be subclasses of some Machine class? (will also need mapping to visual representation)
 
-    def __init__(self, num_trainees):
-        self.grid = mesa.space.MultiGrid(widht=10, height=10, torus=False) # TODO: actual gym layout
-        self.schedule = mesa.time.RandomActivation(self) # do we need staged activation?
+    agent_layer: space._Grid
+    equipment_layer: np.ndarray[Optional[Equipment]]
+    
+
+    def __init__(self, num_trainees: int, spawn_location: space.Coordinate = (0, 0)):
+        self.equipment_layer = np.array([ # TODO: read this from file / data structure
+            [None] * len(Gym.Equipment), # corridor
+            list(Gym.Equipment) # all the machines
+        ])
+        if self.equipment_layer[spawn_location] is not None:
+            raise ValueError(f"Spawn location {spawn_location} is occupied by {self.equipment_layer[spawn_location]}")
+        
+        self.agent_layer = space.MultiGrid(*self.equipment_layer.shape, torus=False) 
+        # maybe try hexagonal grid?
+        
+        self.schedule = mesa.time.RandomActivation(self)
+        # maybe we need another scheduler type?
+        # - simultaneous activation (to avoid weird deadlocks)
+        # - random activation by type (to avoid bias towards leg dayers??)
+        
+        # Create agents
+        import gym_agent # placed here to avoid circular import
+
+        for i in range(num_trainees):
+            a = gym_agent.GymRat(i, self)
+            self.schedule.add(a)
+            self.agent_layer.place_agent(a, spawn_location)
+
+        # set up data collection
+        self.datacollector = mesa.datacollection.DataCollector(model_reporters={
+            "Searching": lambda m: sum(1 for a in m.agents if a.state == gym_agent.GymRat.State.SEARCHING)
+        })
         self.running = True
 
-        # Create agents
-        for i in range(num_trainees):
-            a = GymRat(i, self)
-            self.schedule.add(a)
-
-        self.datacollector = mesa.datacollection.DataCollector(model_reporters={
-            "Searching": lambda m: sum(1 for a in m.agents if a.state == GymRat.State.SEARCHING)
-        })
-
     @property
-    def agents(self) -> List[GymRat]:
+    def agents(self) -> List['gym_agent.GymRat']:
         return self.schedule.agents
+    
+    @property
+    def space(self) -> space._Grid:
+        """space of gym elements (required by mesa visualization functions)"""
+        return self.agent_layer # TODO: merge with equipment_layer (or use custom SpaceDrawer)
 
     def step(self):
         self.datacollector.collect(self)
         self.schedule.step()
+
