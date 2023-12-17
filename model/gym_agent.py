@@ -20,7 +20,7 @@ class State(Enum):
     def marker_color(self) -> str:
         match self:
             case State.SEARCHING: return "blue"
-            case State.WORKING_OUT: return "red"
+            case State.WORKING_OUT: return "orange"
             case _:
                 raise NotImplementedError(f"color of {self} not specified")
             
