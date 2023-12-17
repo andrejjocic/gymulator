@@ -51,10 +51,9 @@
 %\correspondingauthor{\textsuperscript{2}To whom correspondence should be addressed. E-mail: author.two\@email.com}
 
 % Keywords are not mandatory, but authors are strongly encouraged to provide them. If provided, please include two to five keywords, separated by the pipe symbol, e.g:
-\keywords{TODO1 | TODO2} 
-
+\keywords{gym layout | crowd simulation | gym-goer behaviour | gym traffic}
 \begin{abstract}
-TODO
+This report describes our work on gym layout optimisation. We begin with a brief overview of the problem and related work, followed by a description of our model and simulation. We conclude with a discussion of our results and future work.
 
 \textbf{NOTE TO REVIEWERS:} TODOs will be replaced in the final version of the report.
 \end{abstract}
@@ -77,22 +76,23 @@ TODO
 
 % If your first paragraph (i.e. with the \dropcap) contains a list environment (quote, quotation, theorem, definition, enumerate, itemize...), the line after the list may have some extra indentation. If this is the case, add \parshape=0 to the end of the list environment.
 \section*{Introduction}
-\dropcap{T}he present work deals with gym layout optimisation.
+% \dropcap{I}
+In this report we describe our work on gym layout optimisation.
 A common occurrence in gyms during peak hours is over-crowding of popular equipment and lots of wandering around searching for a free machine.
 Through simulating gym-goer behavior, we aimed to identify the most effective arrangement of exercise equipment to improve the flow, accessibility, and overall customer satisfaction.
 Our goal is to offer practical insights for gym owners, managers, and designers seeking to optimize their facility layout for the benefit of their clients and business success.
-We limit ourselves to the case of muscle hypertrophy training with resistance exercises.
 
-\subsection*{Hypertrophy training}
-A typical workout routine splits the body into several muscle groups, cycling through them on a per-workout basis. This rotation can be done on a weekly schedule, or the workouts can be weekday-independent for greater flexibility. Popular splits include:
-\begin{itemize}
-	\item \textbf{Push-pull-legs} (PPL) - Push muscles are those involved in pushing movements,
-	such as the chest, frontal deltoids (shoulders), and triceps. Pull muscles are those involved in pulling movements, such as the back musculature, rear deltoids, and biceps. Legs are the lower body muscles, such as the quadriceps, hamstrings, and calves.
-\end{itemize}
-The exercises in a particular workout are then selected to stimulate each muscle in the chosen group, ideally cycling through them to avoid fatigue-induced form breakdown. Each individual exercise usually consists of 2-4 {\it sets} (where a movement is repeated some number of times), and short breaks in between. These breaks facilitate parallel use of gym equipment by (typically) up to two people, where one works out while the other rests. Note that this might involve time-consuming weight adjustment in between sets in case of differing strength levels, depending on the type of machine.
-
-
-
+To simplify the problem
+we will limit ourselves to simulating the behaviour of bodybuilders (performing resistance exercises for muscle hypertrophy).
+In this case, a typical workout routine partitions the body into several sets of muscles, cycling through them on a per-workout basis.
+%This rotation can be done on a weekly schedule, or the workouts can be weekday-independent for greater flexibility. Popular splits include:
+To further simplify the problem, we will only simulate the
+\textit{push-pull-legs} (PPL) partitioning, which is a popular choice for beginners and intermediate lifters.
+We will model the gym as a rectangular grid of cells with pre-set equipment locations, distributed similarly as isles in a grocery store.
+%  - Push muscles are those involved in pushing movements,
+% 	such as the chest, frontal deltoids (shoulders), and triceps. Pull muscles are those involved in pulling movements, such as the back musculature, rear deltoids, and biceps. Legs are the lower body muscles, such as the quadriceps, hamstrings, and calves.
+% \end{itemize}
+% The exercises in a particular workout are then selected to stimulate each muscle in the chosen group, ideally cycling through them to avoid fatigue-induced form breakdown. Each individual exercise usually consists of 2-4 {\it sets} (where a movement is repeated some number of times), and short breaks in between. These breaks facilitate parallel use of gym equipment by (typically) up to two people, where one works out while the other rests. Note that this might involve time-consuming weight adjustment in between sets in case of differing strength levels, depending on the type of machine.
 
 \subsection*{Related work}
 The only publication related to gym layout optimization we could find was ref. \cite{turcine2022gym}, which assumed all gym clients had fixed-order workout routines (including ones with weight loss as a goal) and optimised a circular gym layout to minimise backward movement. Unfortunately, this does not give a good foundation for our work, as the assumptions diverge too far from what we are trying to model.
@@ -101,8 +101,10 @@ Thus we started from a crowd modelling review \cite{yang2020crowd_modelling_revi
 
 \section*{Methods}
 
+We used Python's {\it Mesa} library for simulation, analysis, and visualization of agent-based models.
+
 \subsection*{Gym layout representation}
-For simplicity, we will represent a gym layout as a rectangular area with pre-set square equipment locations of equal size, distributed similarly as isles in a grocery store.
+
 Each location can be occupied by any piece of exercise equipment, and is never left empty.
 One corner of the area will serve as the locker area entrance, where agents enter and exit the gym.
 
@@ -127,24 +129,31 @@ The actual movement will proceed on a pre-defined exploration path around the gy
 
 \subsection*{Layout optimisation}
 
+We have not yet decided on a specific optimisation algorithm, but here we outline some of the possibilities we are considering.
+
+We will begin the opitimisation with a random layout (or set of layouts) and apply some local optimisation. Given the right kind of layout, we could try genetic algorithms. Alternatively, we will consider the Metropolis-Hastings algorithm which was successfully applied to urban layout optimisation \cite
+{feng2016crowd_drive_layout_design,mathew2019urban_walkability}.
+
 \subsubsection*{Objective function}
 
 The quality of a layout will be measured by the following metrics:
 \begin{itemize}
 	\item average sets performed per minute,
-	\item local gym crowdedness, and
+	\item local gym crowdedness (avg. maximum people in a cell), and
 	\item ability to finish each workout plan in available time.
 \end{itemize}
 We might also consider the cost of equipment (and its installation), though this is difficult to estimate in general and this might make more sense as an input to our optimiser, given by a gym owner.
 
-\subsubsection*{Optimisation algorithm}
 
-We will begin the opitimisation with a random layout (or set of layouts) and apply some local optimisation. Given the right kind of layout, we could try genetic algorithms. Alternatively, we will consider the Metropolis-Hastings algorithm which was successfully applied to urban layout optimisation \cite{feng2016crowd_drive_layout_design,mathew2019urban_walkability}.
+\section*{Results}
+\textbf{TODO} % usaj en screenshot simulacije
 
 
-\subsection*{Simulation}
+\section*{Discussion}
+\textbf{TODO}
 
-We will use Python's Mesa library for simulation, analysis, and visualization of agent-based models.
+\subsection*{Future work}
+
 
 % \subsection*{Generiranje začetnega terena}
 % Ker je bil cilj generirati teren v obliki otoka smo želeli, da bo teren na sredini višinske karte višji kot ob robovih. To smo dosegli z generiranjem višinske karte, ki definira teren v obliki stožca z nelinearno klančino:
@@ -423,7 +432,7 @@ We will use Python's Mesa library for simulation, analysis, and visualization of
 
 % Terenu bi lahko dodatno izboljšali videz s tem, da bi za njegovo predstavitev uporabili več plasti z različnimi trdotami, kar bi morali nato upoštevati tudi pri simulacijah procesa erozije \cite{benevs_layered_08}. Funkcije, ki generirajo začetni teren, pa smo že zasnovali tako, da lahko izhod ene uporabimo kot vhod druge. S tem imamo več možnosti pri gradnji začetnega terena; nismo omejeni zgolj na obliko stožca. 
 
-\acknow{TODO}
+\acknow{Andrej Jočić wrote the simulation code. Matic Stare did stuff. Martin Starič did things. \textbf{(TODO)}}
 \showacknow % Display the acknowledgments section
 
 % \pnasbreak splits and balances the columns before the references.
