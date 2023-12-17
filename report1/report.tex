@@ -133,7 +133,7 @@ Alternatively, we will consider the Metropolis-Hastings algorithm which was succ
 
 \subsubsection*{Objective function}
 
-The quality of a layout will be measured as the weighted sum of the following factors: 
+The quality of a layout will be measured as a weighted sum of the following factors (determined in a simulation cycle): 
 \begin{itemize}
 	\item proportion of time spent exercising (vs. searching or waiting around),
 	\item local gym crowdedness (eg. maximum number of agents in a single cell), and
@@ -152,19 +152,18 @@ For now, we don't yet have any insightful results to discuss.
 
 \subsection*{Future work} 
 
-The exercises in a particular workout are then selected to stimulate each muscle in the chosen group, ideally cycling through them to avoid fatigue-induced form breakdown. Each individual exercise usually consists of 2-4 {\it sets} (where a movement is repeated some number of times), and short breaks in between. These breaks facilitate parallel use of gym equipment by (typically) up to two people, where one works out while the other rests. Note that this might involve time-consuming weight adjustment in between sets in case of differing strength levels, depending on the type of machine.
+We could make our gym layout model more realistic with the addition of shared resources (eg. free weights next to a set of benches), compound machines (eg. a cable harness with multiple weight stacks) and multi-purpose equipment (eg. a squat rack with a pull-up bar), but none of this is a priority for now.
+It might be a lot more interesting to let our optimizer come up with a layout from scratch (without hand-crafted templates), but it's likely this will make the optimizer take too long to converge to anything sensible.
 
-Note that such a discretization does not allow us to model shared resources such as the free weights next to a set of benches, or compound machines such as a cable harness with multiple weight stacks.
-Our set of supported machines won't include any multi-purpose equipment, such as a squat rack with a pull-up bar.
+We will also consider implementing more fine-grained agent behaviour, such as:
+\begin{itemize}
+	\item {\bf Parallel use of gym equipment:} A resistance exercise is usually performed as a sequence of (typically 3) {\it sets} where a movement is repeated some number of times, with short breaks in between. These breaks facilitate parallel use of gym equipment by two people, where one works out while the other rests. Note that this might involve time-consuming weight adjustment in between sets in case of differing strength levels, depending on the type of machine. Thus we will have to model a preference for free machines, even if it means greater travel distance for the agent.
+	\item {\bf Non-uniform arrival of agents:} In the current implementation, a simulation starts with all agents entering the gym at the same time. We will implement a more realistic arrival process, where agents arrive at a time-dependent rate which peaks in the early evening.
+	\item {\bf Smarter exercise selection:} An agent could exhibit preferences based on its immediate workout history. For example, it could try to avoid performing 2 chest exercises back-to-back in a push workout, since the chest fatigue will make the second exercise less effective.
+	\item {\bf Larger timescale of simulation cycles:} If we simulated several days of gym traffic, we could have agents persist across workouts and thus actually cycle through their workout routines (such as push, pull, legs or some alternative partitioning) instead of just assigning each agent a random workout upon creation.
+\end{itemize}
 
-% TODO: layout generation without templates
-
-Each agent will then cycle through the muscle groups in their routine on each consecutive workout until the end of the simulation.
-The rate at which agents enter the gym will vary throughout the day, with a peak during the evening hours (this peak should be especially pronounced on work days).
-
-There will have to be a built-in preference for free machines even if it means greater travel distance, as working in with someone is usually left as a last resort.
-
-
+% see also todoist/future work
 
 
 \acknow{Andrej Jočić wrote the simulation code. Matic Stare did stuff. Martin Starič did things. \textbf{(TODO)}}

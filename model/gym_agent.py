@@ -99,7 +99,7 @@ class GymRat(mesa.Agent):
     def exercise_duration(self) -> int:
         """number of steps to perform an exercise (all sets)"""
         # NOTE: one tick is the amount of time it takes to move between two adjacent cells
-        return 5 # TODO: make this random (and sensible)
+        return 5 # TODO: make this random (and sensible); dependent on the actual exercise?
 
     def step(self):
         """advance the agent's state machine"""
