@@ -24,7 +24,7 @@ class State(Enum):
     def marker_color(self) -> str:
         match self:
             case State.SEARCHING: return "blue"
-            case State.WORKING_OUT: return "red"
+            case State.WORKING_OUT: return "orange"
             case _:
                 raise NotImplementedError(f"color of {self} not specified")
             
@@ -109,7 +109,7 @@ class GymRat(mesa.Agent):
     def exercise_duration(self) -> int:
         """number of steps to perform an exercise (all sets)"""
         # NOTE: one tick is the amount of time it takes to move between two adjacent cells
-        return 5 # TODO: make this random (and sensible)
+        return 5 # TODO: make this random (and sensible); dependent on the actual exercise?
 
     def construct_paths(self,grid):
         if self.pos == None:
