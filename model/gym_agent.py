@@ -86,7 +86,6 @@ class GymRat(mesa.Agent):
             case _:
                 raise ValueError(f"Unsupported workout routine: {routine}")
             
-        #self.path = self.construct_paths(self.model.equipment_layer)[0] # Grabs nearest path
 
 
             
@@ -111,6 +110,8 @@ class GymRat(mesa.Agent):
         # NOTE: one tick is the amount of time it takes to move between two adjacent cells
         return 5 # TODO: make this random (and sensible); dependent on the actual exercise?
 
+    """
+    Pathfinding to be done.
     def construct_paths(self,grid):
         if self.pos == None:
             return None
@@ -145,7 +146,7 @@ class GymRat(mesa.Agent):
             substring = str(path[i]).split("(")[1].split(")")[0]
             path[i] = (int(substring[0]),int(substring[2]))
 
-        return path
+        return path"""
 
     def step(self):
         """advance the agent's state machine"""
@@ -172,7 +173,9 @@ class GymRat(mesa.Agent):
                     # TODO: follow exploration path (not random)
                     direction = self.random.choice(free_space)
                     self.move_to(direction)
-                    """if not self.path:
+                    """
+                    Pathfinding to be done.
+                    if not self.path:
                         #print(self.training_queue)
                         self.path = self.construct_paths(copy.deepcopy(self.model.equipment_layer))[0]
                         if not self.path:
