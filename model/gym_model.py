@@ -172,4 +172,3 @@ class Gym(mesa.Model):
     def step(self):
         self.datacollector.collect(self)
         self.schedule.step()
-

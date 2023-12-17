@@ -2,6 +2,10 @@ import mesa
 from gym_model import Gym, Equipment
 import mesa.space as space
 
+from pathfinding.core.diagonal_movement import DiagonalMovement
+from pathfinding.core.grid import Grid
+from pathfinding.finder.a_star import AStarFinder
+import copy
 from enum import Enum, auto
 from collections import Counter
 import math
@@ -45,6 +49,7 @@ class GymRat(mesa.Agent):
     routine: Routine
     used_equipment: Set[Equipment]
     training_queue: Counter
+    path: List
     """muscle -> number of exercises left to do for that muscle"""
 
     def __init__(self, unique_id: int, model: Gym, routine: Optional[Routine] = None):
@@ -54,6 +59,7 @@ class GymRat(mesa.Agent):
 
         self.routine = self.random.choice(list(Routine)) if routine is None else routine
         self.used_equipment = set()
+        self.path = list()
 
         match self.routine:
             case Routine.PUSH:
@@ -80,6 +86,10 @@ class GymRat(mesa.Agent):
             case _:
                 raise ValueError(f"Unsupported workout routine: {routine}")
             
+        #self.path = self.construct_paths(self.model.equipment_layer)[0] # Grabs nearest path
+
+
+            
     @property
     def gym(self) -> Gym: # can't just rename model to gym (because subclassing)
         return self.model
@@ -100,6 +110,42 @@ class GymRat(mesa.Agent):
         """number of steps to perform an exercise (all sets)"""
         # NOTE: one tick is the amount of time it takes to move between two adjacent cells
         return 5 # TODO: make this random (and sensible)
+
+    def construct_paths(self,grid):
+        if self.pos == None:
+            return None
+        end_points = list()
+        print(grid)
+        for i in range(len(grid)):
+            for j in range(len(grid[i])):
+                if (i,j) == self.pos:
+                    grid[i][j] = -1
+                elif grid[i][j] == None:
+                    grid[i][j] = 1
+                elif self.training_queue[grid[i][j].muscle] > 0 and not grid[i][j] in self.used_equipment:
+                    grid[i][j] = 2
+                    end_points.append((i,j))
+                else:
+                    grid[i][j] = 0
+        print(grid)
+        
+        paths = list()
+        paths = [self.find_path(grid,self.pos,end) for end in end_points]
+        distances = [len(path) for path in paths]
+        sorted_paths , _ = zip(*sorted(zip(paths,distances), key = lambda x: x[1]))
+        return sorted_paths
+
+    def find_path(self, grid, start, end):
+        grid = Grid(matrix=grid)
+        start_node = grid.node(*start)
+        end_node = grid.node(*end)
+        finder = AStarFinder(diagonal_movement=DiagonalMovement.always)
+        path,_ = finder.find_path(start_node, end_node, grid)
+        for i in range(len(path)):
+            substring = str(path[i]).split("(")[1].split(")")[0]
+            path[i] = (int(substring[0]),int(substring[2]))
+
+        return path
 
     def step(self):
         """advance the agent's state machine"""
@@ -124,7 +170,34 @@ class GymRat(mesa.Agent):
                 else:
                     free_space = [cell for cell in fov if self.model.equipment_layer[cell] is None]
                     # TODO: follow exploration path (not random)
-                    self.move_to(self.random.choice(free_space))
+                    direction = self.random.choice(free_space)
+                    self.move_to(direction)
+                    """if not self.path:
+                        #print(self.training_queue)
+                        self.path = self.construct_paths(copy.deepcopy(self.model.equipment_layer))[0]
+                        if not self.path:
+                            self.model.schedule.remove(self)
+                    if self.path:
+                        node = self.path.pop(0)
+                        #print(self.pos,node,self.path)
+                        #self.move_to(node)
+                        direction = self.random.choice(free_space)
+                        print(free_space,self.pos,direction)
+                        self.move_to(direction)
+                        """""" if (machine := self.model.equipment_layer[node]) is not None:
+                            self.state = State.WORKING_OUT
+                            self.transition_timer = self.exercise_duration()
+                                
+                            self.training_queue[machine.muscle] -= 1
+                            self.used_equipment.add(machine)
+                            print(free_space)
+                            self.move_to(node)
+                        else:
+                            self.move_to(self.random.choice(free_space)) """
+                    #else:
+                    
+                        #print(free_space,self.pos,direction)
+                    
 
             case State.WORKING_OUT:
                 if self.transition_timer == 0:
@@ -133,6 +206,7 @@ class GymRat(mesa.Agent):
                     else:
                         self.state = State.SEARCHING
                         self.transition_timer = None
+                        self.path = list()
             case _:
                 raise NotImplementedError(f"State {self.state} not implemented")
             
