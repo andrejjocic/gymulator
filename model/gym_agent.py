@@ -86,8 +86,6 @@ class GymRat(mesa.Agent):
             case _:
                 raise ValueError(f"Unsupported workout routine: {routine}")
             
-
-
             
     @property
     def gym(self) -> Gym: # can't just rename model to gym (because subclassing)
@@ -110,13 +108,10 @@ class GymRat(mesa.Agent):
         # NOTE: one tick is the amount of time it takes to move between two adjacent cells
         return 5 # TODO: make this random (and sensible); dependent on the actual exercise?
 
-    """
-    Pathfinding to be done.
+    
+    
     def construct_paths(self,grid):
-        if self.pos == None:
-            return None
         end_points = list()
-        print(grid)
         for i in range(len(grid)):
             for j in range(len(grid[i])):
                 if (i,j) == self.pos:
@@ -128,7 +123,7 @@ class GymRat(mesa.Agent):
                     end_points.append((i,j))
                 else:
                     grid[i][j] = 0
-        print(grid)
+        grid = [list(row) for row in zip(*grid)]
         
         paths = list()
         paths = [self.find_path(grid,self.pos,end) for end in end_points]
@@ -144,9 +139,10 @@ class GymRat(mesa.Agent):
         path,_ = finder.find_path(start_node, end_node, grid)
         for i in range(len(path)):
             substring = str(path[i]).split("(")[1].split(")")[0]
-            path[i] = (int(substring[0]),int(substring[2]))
-
-        return path"""
+            substring2 = substring.split(":")
+            substring3 = substring2[1].split(" ")
+            path[i] = (int(substring2[0]),int(substring3[0]))
+        return path
 
     def step(self):
         """advance the agent's state machine"""
@@ -170,36 +166,21 @@ class GymRat(mesa.Agent):
                             break
                 else:
                     free_space = [cell for cell in fov if self.model.equipment_layer[cell] is None]
-                    # TODO: follow exploration path (not random)
-                    direction = self.random.choice(free_space)
-                    self.move_to(direction)
-                    """
-                    Pathfinding to be done.
                     if not self.path:
-                        #print(self.training_queue)
-                        self.path = self.construct_paths(copy.deepcopy(self.model.equipment_layer))[0]
+                        self.path = self.random.choice(self.construct_paths(copy.deepcopy(self.model.equipment_layer)))
+                        print(self.path)
                         if not self.path:
                             self.model.schedule.remove(self)
                     if self.path:
                         node = self.path.pop(0)
-                        #print(self.pos,node,self.path)
-                        #self.move_to(node)
-                        direction = self.random.choice(free_space)
-                        print(free_space,self.pos,direction)
-                        self.move_to(direction)
-                        """""" if (machine := self.model.equipment_layer[node]) is not None:
+                        self.move_to(node)
+                        """ if (machine := self.model.equipment_layer[node]) is not None:
                             self.state = State.WORKING_OUT
                             self.transition_timer = self.exercise_duration()
-                                
                             self.training_queue[machine.muscle] -= 1
                             self.used_equipment.add(machine)
-                            print(free_space)
-                            self.move_to(node)
-                        else:
-                            self.move_to(self.random.choice(free_space)) """
-                    #else:
-                    
-                        #print(free_space,self.pos,direction)
+                            #print(free_space)
+                            self.move_to(node) """
                     
 
             case State.WORKING_OUT:

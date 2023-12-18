@@ -137,8 +137,7 @@ class Gym(mesa.Model):
 
         coords = [(y, x) for y in range(rows) for x in range(cols)]
         self.random.shuffle(coords)
-
-        layout = np.full((rows, cols), None, dtype=Equipment)
+        layout = np.full((rows, cols), None, dtype=Equipment) 
         for i, machine in enumerate(machines):
             layout[coords[i]] = machine # FIXME: this can create unreachable machines
 
