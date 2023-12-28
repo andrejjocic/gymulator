@@ -56,6 +56,7 @@ class Equipment(Enum):
                 raise NotImplementedError(f"muscle for {self} not specified")
     
 
+# - maybe machines should be subclasses of some Machine class? (will also need mapping to visual representation)
 
 class EquipmentAgent(mesa.Agent):
     """piece of equipment, wrapped into an agent (for visualization purposes)"""
@@ -67,12 +68,6 @@ class EquipmentAgent(mesa.Agent):
 
     @property
     def portrayal(self) -> Dict[str, Any]:
-        # try:
-        #     occupant = next(self.model.agent_layer.iter_cell_list_contents(self.pos))
-        #     print(f"using {self}: {occupant}")
-        #     free = False
-        # except StopIteration:
-        #     free = True
         free = self.model.agent_layer.is_cell_empty(self.pos)
 
         return {
@@ -82,9 +77,6 @@ class EquipmentAgent(mesa.Agent):
             "marker": "p" # pentagon
         }
 
-
-# TODO: mapping from machine to muscle (limit to one for now)
-# - maybe machines should be subclasses of some Machine class? (will also need mapping to visual representation)
 
 class Gym(mesa.Model):
     num_agents: int
