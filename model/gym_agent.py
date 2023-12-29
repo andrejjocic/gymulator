@@ -53,7 +53,6 @@ class GymRat(mesa.Agent):
     path: List
 
     def __init__(self, unique_id: int, model: Gym, routine: Optional[Routine] = None):
-        print("agent constructor")
         super().__init__(unique_id, model)
         self.state = State.SEARCHING
         self.transition_timer = None
@@ -87,11 +86,8 @@ class GymRat(mesa.Agent):
             case _:
                 raise ValueError(f"Unsupported workout routine: {routine}")
             
-        total_machines = Counter(machine.muscle for machine in model.machines)
-        print(total_machines)
-        print(self.training_queue)
-        if not self.training_queue <= total_machines:
-            raise ValueError(f"Not enough machines for {self.routine} routine")
+        if not self.training_queue <= model.machines_per_muscle:
+            raise ValueError(f"Not enough machines for {self.routine.name} routine")
             
             
     @property

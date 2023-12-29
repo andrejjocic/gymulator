@@ -6,6 +6,8 @@ import numpy as np
 import copy
 import math
 from typing import List, Iterator, Optional, Dict, Any, Set, Tuple
+from functools import cached_property
+from collections import Counter
 
 
 class Equipment(Enum):
@@ -90,6 +92,7 @@ class Gym(mesa.Model):
     def __init__(self, interarrival_time: int, layout: Optional[np.ndarray] = None, machine_density=0.5, spawn_location: space.Coordinate = (0, 0)):
         """- interarrival_time: time between arrivals of new trainees (in timesteps)
         - layout: 2D array of Equipment (None for empty cells). If None, a random layout will be generated.
+        NOTE: position (x,y) corresponds to layout[x, y], not layout[y, x]
         """
         self.interarrival_time = interarrival_time
 
@@ -97,7 +100,7 @@ class Gym(mesa.Model):
             assert 0 < machine_density <= 1
             self.equipment_layer, self.spawn_location = self.build_random_layout(machine_density)
         else:
-            self.equipment_layer = layout.T # NOTE: transpose because of weird mesa space implementation
+            self.equipment_layer = layout
             self.spawn_location = spawn_location
 
         if self.machine_at(self.spawn_location) is not None:
@@ -121,13 +124,16 @@ class Gym(mesa.Model):
 
 
     def machine_at(self, cell: space.Coordinate) -> Optional[Equipment]:
-        # x, y = cell
-        # return self.equipment_layer[y, x]
         return self.equipment_layer[cell]
     
     @property
     def machines(self) -> Iterator[Equipment]:
         return (machine for machine in self.equipment_layer.flat if machine is not None)
+    
+    @cached_property
+    def machines_per_muscle(self) -> Counter:
+        return Counter(machine.muscle for machine in self.machines)
+
 
     def spawn_trainee(self):
         import gym_agent as agent # placed here to avoid circular import
@@ -152,9 +158,9 @@ class Gym(mesa.Model):
         rows = math.ceil(math.sqrt(total_cells))
         cols = math.ceil(total_cells / rows)
 
-        coords = [(y, x) for y in range(rows) for x in range(cols)]
+        coords = [(x, y) for y in range(rows) for x in range(cols)]
         self.random.shuffle(coords)
-        layout = np.full((rows, cols), None, dtype=Equipment) 
+        layout = np.full((cols, rows), None, dtype=Equipment) 
         for i, machine in enumerate(machines):
             layout[coords[i]] = machine # FIXME: this can create unreachable machines
 
@@ -176,14 +182,14 @@ class Gym(mesa.Model):
         elements = copy.deepcopy(self.agent_layer)
         i = self.spawned_agents
 
-        for (y, x), val in np.ndenumerate(self.equipment_layer):
+        for pos, val in np.ndenumerate(self.equipment_layer):
             if val is not None:
                 virtual_agent = EquipmentAgent(unique_id=i, model=self, type=val)
                 i += 1
-                # elements.place_agent(virtual_agent, (x, y))
-                elements.place_agent(virtual_agent, (y, x))
+                elements.place_agent(virtual_agent, pos)
 
         # could use custom space_drawer in JupyterVis instead of this hack?
+        # https://mesa.readthedocs.io/en/stable/tutorials/adv_tutorial_legacy.html
         return elements
     
 

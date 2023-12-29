@@ -13,18 +13,16 @@ import numpy as np
 class LayoutTemplate:
     """ordered collection of gym equipment locations"""
     locations: List[space.Coordinate]
-    gym_height: int
     gym_width: int
+    gym_height: int
     entrance: space.Coordinate
 
     def instantiate(self, machines: List[Equipment]) -> np.ndarray:
         """create a gym layout from this template"""
         assert len(machines) == len(self.locations)
-        # layout = np.full((self.gym_height, self.gym_width), None, dtype=Equipment)
         layout = np.full((self.gym_width, self.gym_height), None, dtype=Equipment)
-        for machine, (x, y) in zip(machines, self.locations):
-            # layout[y, x] = machine
-            layout[x, y] = machine
+        for machine, loc in zip(machines, self.locations):
+            layout[loc] = machine
 
         return layout
 
@@ -96,4 +94,4 @@ def optimize_gym(layout_template: LayoutTemplate, steps_per_run=1000, **gym_kwar
 
 
 if __name__ == "__main__":
-    optimize_gym(LayoutTemplate.circular(5, 5))
+    optimize_gym(LayoutTemplate.circular(50, 7), interarrival_time=5, steps_per_run=50)
