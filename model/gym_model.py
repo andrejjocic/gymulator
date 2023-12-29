@@ -10,7 +10,7 @@ from typing import List, Iterator, Optional, Dict, Any, Set, Tuple
 
 class Equipment(Enum):
     """machines etc. that can be used for a particular exercise"""
-    BENCH_PRESS = auto()
+    BENCH_PRESS = 0
     CHEST_FLY = auto()
     TRICEPS_EXTENSION = auto()
     TRICEPS_PUSHDOWN = auto()
@@ -79,21 +79,29 @@ class EquipmentAgent(mesa.Agent):
 
 
 class Gym(mesa.Model):
-    num_agents: int
+    interarrival_time: int
+    """time between arrivals of new trainees (in timesteps)"""
+    spawn_location: space.Coordinate
+    spawned_agents: int = 0
+    spawn_timer: int = 0
     agent_layer: space._Grid
     equipment_layer: np.ndarray[Optional[Equipment]]
 
-    def __init__(self, num_trainees: int, machine_density: float, spawn_location: space.Coordinate = (0, 0)):
-        self.num_agents = num_trainees
+    def __init__(self, interarrival_time: int, layout: Optional[np.ndarray] = None, machine_density=0.5, spawn_location: space.Coordinate = (0, 0)):
+        """- interarrival_time: time between arrivals of new trainees (in timesteps)
+        - layout: 2D array of Equipment (None for empty cells). If None, a random layout will be generated.
+        """
+        self.interarrival_time = interarrival_time
 
-        # TODO: read layout from file / data structure 
-        # self.equipment_layer = np.array([ 
-        #     [None] * len(Equipment), # corridor
-        #     list(Equipment) # all the machines
-        # ]).T
-        self.equipment_layer, spawn_location = self.build_random_layout(machine_density=machine_density)
-        if self.equipment_layer[spawn_location] is not None:
-            raise ValueError(f"Spawn location {spawn_location} is occupied by {self.equipment_layer[spawn_location]}")
+        if layout is None:
+            assert 0 < machine_density <= 1
+            self.equipment_layer, self.spawn_location = self.build_random_layout(machine_density)
+        else:
+            self.equipment_layer = layout.T # NOTE: transpose because of weird mesa space implementation
+            self.spawn_location = spawn_location
+
+        if self.machine_at(self.spawn_location) is not None:
+            raise ValueError(f"Spawn location {spawn_location} is occupied by {self.equipment_layer[spawn_location].name}")
         
         self.agent_layer = space.MultiGrid(*self.equipment_layer.shape, torus=False) 
         # maybe try hexagonal grid?
@@ -101,22 +109,39 @@ class Gym(mesa.Model):
         self.schedule = mesa.time.RandomActivation(self)
         # maybe we need another scheduler type?
         # - simultaneous activation (to avoid weird deadlocks)
-        # - random activation by type (to avoid bias towards leg dayers??)
+        # - random activation by type (to avoid bias towards agents in certain state / routine)
         
-        # Create agents
-        import gym_agent as agent # placed here to avoid circular import
-
-        for i in range(num_trainees):
-            a = agent.GymRat(i, self)
-            self.schedule.add(a)
-            self.agent_layer.place_agent(a, spawn_location)
+        # spawn the first agent
+        self.spawn_trainee()
 
         # set up data collection
         self.datacollector = mesa.datacollection.DataCollector(model_reporters={
-            "Searching": lambda m: sum(1 for a in m.agents if a.state == agent.State.SEARCHING)
+            "Searching": lambda m: sum(1 for a in m.agents if a.state.name == "SEARCHING")
         })
+
+
+    def machine_at(self, cell: space.Coordinate) -> Optional[Equipment]:
+        # x, y = cell
+        # return self.equipment_layer[y, x]
+        return self.equipment_layer[cell]
     
-    def build_random_layout(self, machine_copies=2, machine_density=1/2) -> Tuple[np.ndarray[Optional[Equipment]], space.Coordinate]:
+    @property
+    def machines(self) -> Iterator[Equipment]:
+        return (machine for machine in self.equipment_layer.flat if machine is not None)
+
+    def spawn_trainee(self):
+        import gym_agent as agent # placed here to avoid circular import
+        
+        a = agent.GymRat(self.spawned_agents, self)
+        self.schedule.add(a)
+        self.agent_layer.place_agent(a, self.spawn_location)
+        self.spawned_agents += 1
+
+        # schedule next spawn
+        self.spawn_timer = self.interarrival_time
+
+    
+    def build_random_layout(self, machine_density: float, machine_copies=2) -> Tuple[np.ndarray, space.Coordinate]:
         """generate a random layout of all the machines (each machine appears twice by default)
         - machine_density = (number of machines) / (number of cells)
         - machine_copies = number of copies of each machine
@@ -138,7 +163,8 @@ class Gym(mesa.Model):
 
     @property
     def running(self) -> bool:
-        return self.schedule.get_agent_count() > 0
+        # return self.schedule.get_agent_count() > 0
+        return True
 
     @property
     def agents(self) -> List['GymRat']:
@@ -147,19 +173,24 @@ class Gym(mesa.Model):
     @property
     def space(self) -> space._Grid:
         """space of gym elements (required by mesa visualization functions)"""
-        elements = copy.deepcopy(self.agent_layer) # need deepcopy?
-        i = self.num_agents
+        elements = copy.deepcopy(self.agent_layer)
+        i = self.spawned_agents
 
-        for cell, val in np.ndenumerate(self.equipment_layer):
+        for (y, x), val in np.ndenumerate(self.equipment_layer):
             if val is not None:
                 virtual_agent = EquipmentAgent(unique_id=i, model=self, type=val)
                 i += 1
-                elements.place_agent(virtual_agent, cell)
+                # elements.place_agent(virtual_agent, (x, y))
+                elements.place_agent(virtual_agent, (y, x))
 
         # could use custom space_drawer in JupyterVis instead of this hack?
         return elements
     
 
     def step(self):
+        self.spawn_timer -= 1
+        if self.spawn_timer == 0:
+            self.spawn_trainee()
+
         self.datacollector.collect(self)
         self.schedule.step()

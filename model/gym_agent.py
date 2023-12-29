@@ -49,10 +49,11 @@ class GymRat(mesa.Agent):
     routine: Routine
     used_equipment: Set[Equipment]
     training_queue: Counter
-    path: List
     """muscle -> number of exercises left to do for that muscle"""
+    path: List
 
     def __init__(self, unique_id: int, model: Gym, routine: Optional[Routine] = None):
+        print("agent constructor")
         super().__init__(unique_id, model)
         self.state = State.SEARCHING
         self.transition_timer = None
@@ -86,6 +87,12 @@ class GymRat(mesa.Agent):
             case _:
                 raise ValueError(f"Unsupported workout routine: {routine}")
             
+        total_machines = Counter(machine.muscle for machine in model.machines)
+        print(total_machines)
+        print(self.training_queue)
+        if not self.training_queue <= total_machines:
+            raise ValueError(f"Not enough machines for {self.routine} routine")
+            
             
     @property
     def gym(self) -> Gym: # can't just rename model to gym (because subclassing)
@@ -101,13 +108,13 @@ class GymRat(mesa.Agent):
         self.model.agent_layer.move_agent(self, new_pos)
 
     
-    # NOTE: use self.model.random for random choices / time intervals
+    # NOTE: use self.random for random choices / time intervals
     
     def exercise_duration(self) -> int:
         """number of steps to perform an exercise (all sets)"""
         # NOTE: one tick is the amount of time it takes to move between two adjacent cells
-        return 5 # TODO: make this random (and sensible); dependent on the actual exercise?
-
+        return 5 # TODO: make this random
+        # return int(self.random.normalvariate(mu=50, sigma=10))
     
     
     def construct_paths(self,grid):
@@ -153,7 +160,7 @@ class GymRat(mesa.Agent):
             case State.SEARCHING:   
                 fov = list(self.field_of_view())
                 for cell in fov:
-                    if (machine := self.model.equipment_layer[cell]) is not None:
+                    if (machine := self.model.machine_at(cell)) is not None:
                         if machine in self.used_equipment:
                             continue
                         if self.training_queue[machine.muscle] > 0:
@@ -165,16 +172,16 @@ class GymRat(mesa.Agent):
                             self.used_equipment.add(machine)
                             break
                 else:
-                    free_space = [cell for cell in fov if self.model.equipment_layer[cell] is None]
+                    free_space = [cell for cell in fov if self.model.machine_at(cell) is None]
                     if not self.path:
                         self.path = self.random.choice(self.construct_paths(copy.deepcopy(self.model.equipment_layer)))
-                        print(self.path)
+                        # print(self.path)
                         if not self.path:
                             self.model.schedule.remove(self)
                     if self.path:
                         node = self.path.pop(0)
                         self.move_to(node)
-                        """ if (machine := self.model.equipment_layer[node]) is not None:
+                        """ if (machine := self.model.machine_at(node)) is not None:
                             self.state = State.WORKING_OUT
                             self.transition_timer = self.exercise_duration()
                             self.training_queue[machine.muscle] -= 1
