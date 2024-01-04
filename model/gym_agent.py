@@ -51,11 +51,14 @@ class GymRat(mesa.Agent):
     training_queue: Counter
     """muscle -> number of exercises left to do for that muscle"""
     path: List
+    mean_exercise_duration: float
 
-    def __init__(self, unique_id: int, model: Gym, routine: Optional[Routine] = None):
+    def __init__(self, unique_id: int, model: Gym, mean_exercise_duration: float, routine: Optional[Routine] = None):
         super().__init__(unique_id, model)
         self.state = State.SEARCHING
         self.transition_timer = None
+        self.mean_exercise_duration = mean_exercise_duration # at least make it dependent on routine? (longer for legs)
+        # NOTE: one tick is the amount of time it takes to move between two adjacent cells (about 1 second)
 
         self.routine = self.random.choice(list(Routine)) if routine is None else routine
         self.used_equipment = set()
@@ -108,9 +111,7 @@ class GymRat(mesa.Agent):
     
     def exercise_duration(self) -> int:
         """number of steps to perform an exercise (all sets)"""
-        # NOTE: one tick is the amount of time it takes to move between two adjacent cells
-        return 5 # TODO: make this random
-        # return int(self.random.normalvariate(mu=50, sigma=10))
+        return int(self.mean_exercise_duration) 
     
     
     def construct_paths(self,grid):

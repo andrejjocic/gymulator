@@ -8,6 +8,7 @@ import math
 from typing import List, Iterator, Optional, Dict, Any, Set, Tuple
 from functools import cached_property
 from collections import Counter
+import pandas as pd
 
 
 class Equipment(Enum):
@@ -78,23 +79,28 @@ class EquipmentAgent(mesa.Agent):
             "alpha": 1,
             "marker": "p" # pentagon
         }
-
+    
 
 class Gym(mesa.Model):
     interarrival_time: int
     """time between arrivals of new trainees (in timesteps)"""
+    mean_exercise_duration: int
     spawn_location: space.Coordinate
     spawned_agents: int = 0
     spawn_timer: int = 0
     agent_layer: space._Grid
     equipment_layer: np.ndarray[Optional[Equipment]]
 
-    def __init__(self, interarrival_time: int, layout: Optional[np.ndarray] = None, machine_density=0.5, spawn_location: space.Coordinate = (0, 0)):
-        """- interarrival_time: time between arrivals of new trainees (in timesteps)
+    def __init__(self, interarrival_time: int, agent_exercise_duration=2*60,
+                 layout: Optional[np.ndarray] = None, machine_density=0.5, spawn_location: space.Coordinate = (0, 0)):
+        """
+        - agent_exercise_duration: mean duration of a single exercise (in timesteps)
+        - interarrival_time: time between arrivals of new trainees (in timesteps)
         - layout: 2D array of Equipment (None for empty cells). If None, a random layout will be generated.
         NOTE: position (x,y) corresponds to layout[x, y], not layout[y, x]
         """
         self.interarrival_time = interarrival_time
+        self.mean_exercise_duration = agent_exercise_duration
 
         if layout is None:
             assert 0 < machine_density <= 1
@@ -103,8 +109,8 @@ class Gym(mesa.Model):
             self.equipment_layer = layout
             self.spawn_location = spawn_location
 
-        if self.machine_at(self.spawn_location) is not None:
-            raise ValueError(f"Spawn location {spawn_location} is occupied by {self.equipment_layer[spawn_location].name}")
+        if (obstacle := self.machine_at(self.spawn_location)) is not None:
+            raise ValueError(f"Spawn location {spawn_location} is occupied by {obstacle.name}")
         
         self.agent_layer = space.MultiGrid(*self.equipment_layer.shape, torus=False) 
         # maybe try hexagonal grid?
@@ -119,7 +125,8 @@ class Gym(mesa.Model):
 
         # set up data collection
         self.datacollector = mesa.datacollection.DataCollector(model_reporters={
-            "Searching": lambda m: sum(1 for a in m.agents if a.state.name == "SEARCHING")
+            "Utilization": lambda model: proportion_working(model),
+            "Congestion": lambda model: congestion_factor(model),
         })
 
 
@@ -138,7 +145,7 @@ class Gym(mesa.Model):
     def spawn_trainee(self):
         import gym_agent as agent # placed here to avoid circular import
         
-        a = agent.GymRat(self.spawned_agents, self)
+        a = agent.GymRat(self.spawned_agents, self, self.mean_exercise_duration)
         self.schedule.add(a)
         self.agent_layer.place_agent(a, self.spawn_location)
         self.spawned_agents += 1
@@ -200,3 +207,21 @@ class Gym(mesa.Model):
 
         self.datacollector.collect(self)
         self.schedule.step()
+
+
+    def run(self, num_steps: int) -> pd.DataFrame:
+        """run the model for a given number of steps and return the model-level metrics"""
+        for _ in range(num_steps):
+            self.step()
+        
+        return self.datacollector.get_model_vars_dataframe()
+
+
+def proportion_working(model: Gym) -> float:
+    """fraction of agents that are currently working out"""
+    return sum(agent.state.name == "WORKING_OUT" for agent in model.agents) / len(model.agents)
+
+def congestion_factor(model: Gym) -> float:
+    """maximum number of agents in a single cell"""
+    return max(len(content) for content, _ in model.agent_layer.coord_iter())
+    # TODO: try some other congestion metrics (ideally relative to gym size / number of agents?)

@@ -5,7 +5,7 @@ import pygad
 
 from gym_model import Gym, Equipment
 import mesa.space as space
-from typing import List
+from typing import List, Tuple
 from dataclasses import dataclass
 import numpy as np
 
@@ -61,37 +61,42 @@ class LayoutTemplate:
 
 
 def optimize_gym(layout_template: LayoutTemplate, steps_per_run=1000, **gym_kwargs) -> Gym:
-    """optimize the layout of a gym"""
+    """optimize the layout of a gym, constrained by the layout template"""
 
-    def gym_quality(ga_instance, solution, solution_idx) -> float:
-        """fitness function for pygad (will be maximized)"""
+    def gym_quality(ga_instance, solution, solution_idx) -> Tuple[float, ...]:
+        """multi-objective fitness function for pygad (will be maximized)"""
         # print(solution)
         layout = layout_template.instantiate(machines=[Equipment(i) for i in solution])
         gym = Gym(layout=layout, spawn_location=layout_template.entrance, **gym_kwargs)
-        for _ in range(steps_per_run):
-            gym.step()
-
-        return 0.0 # TODO: extract quality metrics
+        
+        metrics = gym.run(steps_per_run)
+        avg_metrics = metrics.mean() # take average of columns (across time steps)
+        
+        return (avg_metrics["Utilization"], 1 / avg_metrics["Congestion"])
         # TODO: use mesa.batch_run for staticstically significant cost function results
     
+    def on_gen(ga_instance):
+        print("Generation : ", ga_instance.generations_completed)
+        print("Fitness of the best solution :", ga_instance.best_solution()[1])
 
 
     ga_instance = pygad.GA(
-        num_generations=3,
-        num_parents_mating=4,
         fitness_func=gym_quality,
         num_genes=len(layout_template),
         gene_space=range(len(Equipment)),
-        sol_per_pop=8,
         # set random seed to the gym's seed?
+        num_generations=3, #50,
+        num_parents_mating=4,
+        sol_per_pop=8,
+        on_generation=on_gen,
     )
 
     ga_instance.run()
 
     solution, solution_fitness, solution_idx = ga_instance.best_solution()
-    print("Parameters of the best solution : {solution}".format(solution=solution))
-    print("Fitness value of the best solution = {solution_fitness}".format(solution_fitness=solution_fitness))
-
+    best_layout = layout_template.instantiate(machines=[Equipment(i) for i in solution])
+    return best_layout, solution_fitness
 
 if __name__ == "__main__":
-    optimize_gym(LayoutTemplate.circular(50, 7), interarrival_time=5, steps_per_run=50)
+    layout, fitness = optimize_gym(LayoutTemplate.circular(40, 20), steps_per_run=20, interarrival_time=5, agent_exercise_duration=5)
+    # print(layout)
