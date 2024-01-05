@@ -84,7 +84,8 @@ class EquipmentAgent(mesa.Agent):
 GymLayout: TypeAlias = np.ndarray[Optional[Equipment]]
 
 def machines_per_muscle(layout: GymLayout) -> Counter['Muscle']:
-    return Counter(machine.muscle for machine in layout.flat if machine is not None)
+    """number of unique machines per muscle"""
+    return Counter(machine.muscle for machine in set(layout.flat) if machine is not None)
     
 
 class Gym(mesa.Model):
@@ -139,13 +140,10 @@ class Gym(mesa.Model):
     def machine_at(self, cell: space.Coordinate) -> Optional[Equipment]:
         return self.equipment_layer[cell]
     
-    @property
-    def machines(self) -> Iterator[Equipment]:
-        return (machine for machine in self.equipment_layer.flat if machine is not None)
-    
     @cached_property
     def machines_per_muscle(self) -> Counter:
-        return Counter(machine.muscle for machine in self.machines)
+        """number of unique machines per muscle"""
+        return machines_per_muscle(self.equipment_layer)
 
 
     def spawn_trainee(self):

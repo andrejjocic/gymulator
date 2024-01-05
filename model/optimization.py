@@ -80,7 +80,7 @@ def optimal_gym(n_generations: int,
         total_machines = machines_per_muscle(layout)
         for routine in Routine:
             if not routine.muscle_groups <= total_machines:
-                print(f"Invalid solution: not enough machines for {routine.name} routine")
+                print(f"Invalid solution: not enough machines for {routine.name} routine (fitness = -inf)")
                 return (-np.inf, -np.inf) # invalid solution (not enough machines for some routine)
                 # could instead cull checklist (+ fitness penalty); or prevent with custom GA functions?
         
@@ -125,10 +125,7 @@ def optimal_gym(n_generations: int,
         K_tournament=3, # parents participating in tournament (if any); greater K -> more selection pressure?
     )
     # TODO: sync random seed between GA and gyms?? https://pygad.readthedocs.io/en/latest/pygad_more.html#random-seed
-    # print("exploring gene space:", ga_instance.gene_space_unpacked)
     ga_instance.summary()
-    ga_instance.cal_pop_fitness()
-
     ga_instance.run()
     print(f"Best fitness value reached after {ga_instance.best_solution_generation} generations.")
     ga_instance.plot_fitness(label=["utilization", "1/congestion"])
@@ -141,8 +138,8 @@ def optimal_gym(n_generations: int,
 
 if __name__ == "__main__":
     layout, fitness = optimal_gym(
-        layout_template=LayoutTemplate.circular(40, 20),
-        simulation_cycle_steps=20, n_generations=3,
-        interarrival_time=1, agent_exercise_duration=4
+        layout_template=LayoutTemplate.circular(height=20, width=20),
+        simulation_cycle_steps=100, n_generations=3,
+        interarrival_time=5, agent_exercise_duration=20
     )
     # print(layout)
