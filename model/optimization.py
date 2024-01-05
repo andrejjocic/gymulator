@@ -3,7 +3,7 @@ import pygad
 # import pygad.utils
 # import pygad.helper
 
-from gym_model import Gym, Equipment, machines_per_muscle
+from gym_model import Gym, Equipment, machines_per_muscle, GymLayout
 from gym_agent import Routine
 import mesa.space as space
 from typing import List, Tuple
@@ -18,7 +18,7 @@ class LayoutTemplate:
     gym_height: int
     entrance: space.Coordinate
 
-    def instantiate(self, machines: List[Equipment]) -> np.ndarray:
+    def instantiate(self, machines: List[Equipment]) -> GymLayout:
         """create a gym layout from this template"""
         assert len(machines) == len(self.locations)
         layout = np.full((self.gym_width, self.gym_height), None, dtype=Equipment)
@@ -56,7 +56,7 @@ class LayoutTemplate:
     
     @staticmethod
     def store_isles(height: int, width: int) -> 'LayoutTemplate':
-        """machines along the walls + isles (width 2, not too long) in the middle"""
+        """machines along the walls + isles (2x2 squares?) in the middle"""
         raise NotImplementedError()
     
 
@@ -67,36 +67,39 @@ def after_generation(ga_instance):
     print()
 
 
-def optimal_gym(n_generations: int,
-                layout_template: LayoutTemplate, simulation_cycle_steps: int, **gym_kwargs
-                ) -> Gym:
-    """Optimize the layout of a gym, constrained by the layout template.
-    Returns the best layout found, and its fitness value (higher is better)."""
+def gym_quality(ga_instance, solution, solution_idx) -> Tuple[float, float]:
+    """multi-objective fitness function for pygad (will be maximized)"""
+    layout = ga_instance.gym_layout_template.instantiate(machines=[Equipment(i) for i in solution])
+    total_machines = machines_per_muscle(layout)
 
-    def gym_quality(ga_instance, solution, solution_idx) -> Tuple[float, float]:
-        """multi-objective fitness function for pygad (will be maximized)"""
-
-        layout = layout_template.instantiate(machines=[Equipment(i) for i in solution])
-        total_machines = machines_per_muscle(layout)
-        for routine in Routine:
-            if not routine.muscle_groups <= total_machines:
-                print(f"Invalid solution: not enough machines for {routine.name} routine (fitness = -inf)")
-                return (-np.inf, -np.inf) # invalid solution (not enough machines for some routine)
-                # could instead cull checklist (+ fitness penalty); or prevent with custom GA functions?
-        
-        gym = Gym(layout=layout, spawn_location=layout_template.entrance, **gym_kwargs)
-        
-        metrics = gym.run(simulation_cycle_steps)
-        avg_metrics = metrics.mean() # take average of columns (across time steps)
-        # return (avg_metrics["Utilization"], 1 / avg_metrics["Congestion"])
-        return (avg_metrics["Utilization"], -avg_metrics["Congestion"])
-        # TODO: use mesa.batch_run for stat. significant cost function results (if there is a lot of randomness in gym model)
-
+    for routine in Routine:
+        if not routine.muscle_groups <= total_machines:
+            print(f"Invalid solution: not enough machines for {routine.name} routine (fitness = -inf)")
+            return (-np.inf, -np.inf) # invalid solution (not enough machines for some routine)
+            # could instead cull checklist (+ fitness penalty); or prevent with custom GA functions?
     
+    gym = Gym(layout=layout, spawn_location=ga_instance.gym_layout_template.entrance, **ga_instance.gym_constructor_kwargs)
+    
+    metrics = gym.run(ga_instance.simulation_steps)
+    avg_metrics = metrics.mean() # take average of columns (across time steps)
+    return (avg_metrics["Utilization"], -avg_metrics["Congestion"])
+    # return (avg_metrics["Utilization"], 1 / avg_metrics["Congestion"])
+    # TODO: use mesa.batch_run for stat. significant cost function results (if there is a lot of randomness in gym model)
+
+
+def optimal_gym(layout_template: LayoutTemplate, n_generations: int,
+                simulation_cycle_steps: int, n_processes=0, **gym_kwargs
+                ) -> Tuple[GymLayout, ...]:
+    """
+    Optimize the layout of a gym, constrained by the layout template.
+    - n_processes: number of processes to use for fitness function computation. 0 for sequential, None for default (calculated by concurrent.futures)
+
+    Returns the best layout found, and its fitness value (higher is better).
+    """    
     min_machine = 0
     max_machine = len(Equipment) - 1
 
-    population_size = 8 # should be at least 1 for each (logical) CPU core?
+    population_size = 8 # should be at least 1 for each (logical) CPU core? NOTE: invalid layouts waste resources
 
     ga_instance = pygad.GA(
         fitness_func=gym_quality,
@@ -109,29 +112,40 @@ def optimal_gym(n_generations: int,
         random_mutation_min_val=min_machine, # only has effect if mutation_type="random"
         random_mutation_max_val=max_machine, # only has effect if mutation_type="random"
         on_generation=after_generation,
-        # parallel_processing=("process", 2), # use default number of processes for fitness function (preferred to threads)
-        # parallel_processing=("thread", None), # use default number of threads for fitness function (preferred if many I/O operations?)
+        parallel_processing=("process", n_processes),
         num_generations=n_generations,
-        # TODO: custom initial pop. (making sure all routines are feasible)
         
         sol_per_pop=population_size,
         num_parents_mating=population_size // 2,
-        keep_elitism=1, # best k solutions kept in next gen (fitness values are cached)
+        keep_elitism=2, # best k solutions kept in next gen (fitness values are cached)
         keep_parents=-1, # -1 to keep all, 0 disables fitness caching! (only has effect if keep_elitism=0)
         crossover_type="single_point", # try also two_points
         
         mutation_type="random", 
         parent_selection_type="nsga2", # try also tournament_nsga2
         K_tournament=3, # parents participating in tournament (if any); greater K -> more selection pressure?
+        # TODO?: custom initial pop. + crossover + mutation, making sure all routines always feasible
     )
     # TODO: sync random seed between GA and gyms?? https://pygad.readthedocs.io/en/latest/pygad_more.html#random-seed
+
+    if (nproc := ga_instance.parallel_processing[1]) is not None and nproc > ga_instance.sol_per_pop:
+        print(f"Warning: population size is smaller than number of processes") # TODO: figure out what is inferred if nproc=None
+    
+    # attach some parameters to the GA instance, so they can be accessed in fitness function (local function not pickle-able for multiprocessing)
+    for attr in ["simulation_steps", "gym_layout_template", "gym_constructor_kwargs"]:
+        assert not hasattr(ga_instance, attr)
+
+    ga_instance.simulation_steps = simulation_cycle_steps
+    ga_instance.gym_layout_template = layout_template
+    ga_instance.gym_constructor_kwargs = gym_kwargs
+
     ga_instance.summary()
     ga_instance.run()
     print(f"Best fitness value reached after {ga_instance.best_solution_generation} generations.")
-    ga_instance.plot_fitness(label=["utilization", "1/congestion"])
-    print("Pareto fronts (for multi-objective optimization):", ga_instance.pareto_fronts) # TODO: plot pareto fronts
+    ga_instance.plot_fitness(label=["utilization", "~congestion"])
+    # print("Pareto fronts (for multi-objective optimization):", ga_instance.pareto_fronts) # TODO: plot pareto fronts
 
-    solution, solution_fitness, solution_idx = ga_instance.best_solution()
+    solution, solution_fitness, solution_idx = ga_instance.best_solution() # FIXME: seems this line re-computes fitness
     best_layout = layout_template.instantiate(machines=[Equipment(i) for i in solution])
     return best_layout, solution_fitness # TODO?: return more solutions
 
@@ -139,7 +153,8 @@ def optimal_gym(n_generations: int,
 if __name__ == "__main__":
     layout, fitness = optimal_gym(
         layout_template=LayoutTemplate.circular(height=20, width=20),
-        simulation_cycle_steps=100, n_generations=3,
-        interarrival_time=5, agent_exercise_duration=20
+        n_processes=2,
+        simulation_cycle_steps=10, n_generations=3,
+        interarrival_time=1, agent_exercise_duration=1
     )
     # print(layout)

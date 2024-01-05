@@ -1,4 +1,9 @@
 from mesa.experimental.jupyter_viz import *
+from gym_model import Gym, GymLayout
+
+
+def draw_layout(layout: GymLayout):
+    raise NotImplementedError()
 
 
 # Avoid interactive backend
@@ -149,7 +154,6 @@ def JupyterVizGym( # NOTE: copy-pasted mesa/experimental/jupyter_viz.py (one lin
 
 
 # modified functions from mesa/experimental/jupyter_viz.py
-from gym_model import Gym
 
 @solara.component
 def GymDrawer(model: Gym, agent_portrayal, dependencies: Optional[List[any]] = None):
