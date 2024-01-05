@@ -29,8 +29,6 @@ class State(Enum):
                 raise NotImplementedError(f"color of {self} not specified")
             
 
-Routine = Enum("Routine", "PUSH PULL LEGS")
-
 Muscle = Enum("Muscle",
     names= """
     BICEPS TRICEPS
@@ -39,6 +37,39 @@ Muscle = Enum("Muscle",
     TRAPS LATS
     QUADS HAMSTRINGS GLUTES CALVES"""
 )
+
+class Routine(Enum):
+    PUSH = auto()
+    PULL = auto()
+    LEGS = auto()
+
+    @property # don't cache this! (modified by caller)
+    def muscle_groups(self) -> Counter[Muscle]:
+        match self:
+            case Routine.PUSH:
+                return Counter({
+                    Muscle.CHEST: 2,
+                    Muscle.TRICEPS: 1,
+                    Muscle.FRONT_DELTS: 1,
+                    Muscle.SIDE_DELTS: 1,
+                })
+            case Routine.PULL:
+                return Counter({
+                    Muscle.LATS: 2,
+                    Muscle.BICEPS: 1,
+                    Muscle.REAR_DELTS: 1,
+                    Muscle.TRAPS: 1,
+                })
+            case Routine.LEGS:
+                return Counter({
+                    Muscle.QUADS: 2,
+                    Muscle.HAMSTRINGS: 1,
+                    Muscle.GLUTES: 1,
+                    Muscle.CALVES: 1,
+                })
+            case _:
+                raise ValueError(f"Unsupported workout routine: {self.name}")
+            
 
 class GymRat(mesa.Agent):
     unique_id: int
@@ -63,33 +94,9 @@ class GymRat(mesa.Agent):
         self.routine = self.random.choice(list(Routine)) if routine is None else routine
         self.used_equipment = set()
         self.path = list()
-
-        match self.routine:
-            case Routine.PUSH:
-                self.training_queue = Counter({
-                    Muscle.CHEST: 2,
-                    Muscle.TRICEPS: 1,
-                    Muscle.FRONT_DELTS: 1,
-                    Muscle.SIDE_DELTS: 1,
-                })
-            case Routine.PULL:
-                self.training_queue = Counter({
-                    Muscle.LATS: 2,
-                    Muscle.BICEPS: 1,
-                    Muscle.REAR_DELTS: 1,
-                    Muscle.TRAPS: 1,
-                })
-            case Routine.LEGS:
-                self.training_queue = Counter({
-                    Muscle.QUADS: 2,
-                    Muscle.HAMSTRINGS: 1,
-                    Muscle.GLUTES: 1,
-                    Muscle.CALVES: 1,
-                })
-            case _:
-                raise ValueError(f"Unsupported workout routine: {routine}")
+        self.training_queue = self.routine.muscle_groups
             
-        if not self.training_queue <= model.machines_per_muscle:
+        if not self.training_queue <= model.machines_per_muscle: # NOTE: redundant check in GA optimizer
             raise ValueError(f"Not enough machines for {self.routine.name} routine")
             
             

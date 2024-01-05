@@ -5,7 +5,7 @@ from enum import Enum, auto
 import numpy as np
 import copy
 import math
-from typing import List, Iterator, Optional, Dict, Any, Set, Tuple
+from typing import TypeAlias, List, Iterator, Optional, Dict, Any, Set, Tuple
 from functools import cached_property
 from collections import Counter
 import pandas as pd
@@ -81,6 +81,12 @@ class EquipmentAgent(mesa.Agent):
         }
     
 
+GymLayout: TypeAlias = np.ndarray[Optional[Equipment]]
+
+def machines_per_muscle(layout: GymLayout) -> Counter['Muscle']:
+    return Counter(machine.muscle for machine in layout.flat if machine is not None)
+    
+
 class Gym(mesa.Model):
     interarrival_time: int
     """time between arrivals of new trainees (in timesteps)"""
@@ -89,7 +95,7 @@ class Gym(mesa.Model):
     spawned_agents: int = 0
     spawn_timer: int = 0
     agent_layer: space._Grid
-    equipment_layer: np.ndarray[Optional[Equipment]]
+    equipment_layer: GymLayout
 
     def __init__(self, interarrival_time: int, agent_exercise_duration=2*60,
                  layout: Optional[np.ndarray] = None, machine_density=0.5, spawn_location: space.Coordinate = (0, 0)):
