@@ -9,6 +9,7 @@ from typing import TypeAlias, List, Iterator, Optional, Dict, Any, Set, Tuple
 from functools import cached_property
 from collections import Counter
 import pandas as pd
+from tqdm import tqdm
 
 
 class Equipment(Enum):
@@ -213,10 +214,15 @@ class Gym(mesa.Model):
         self.schedule.step()
 
 
-    def run(self, num_steps: int) -> pd.DataFrame:
+    def run(self, num_steps: int, progress_bar=False) -> pd.DataFrame:
         """run the model for a given number of steps and return the model-level metrics"""
-        for _ in range(num_steps):
-            self.step()
+        if progress_bar:
+            for _ in (pbar := tqdm(range(num_steps), desc="Simulating gym")):
+                self.step()
+                pbar.set_postfix_str(f"{len(self.agents)} agents")
+        else:
+            for _ in range(num_steps):
+                self.step()
         
         return self.datacollector.get_model_vars_dataframe()
 

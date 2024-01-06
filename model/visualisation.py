@@ -1,9 +1,29 @@
 from mesa.experimental.jupyter_viz import *
 from gym_model import Gym, GymLayout
+from gym_agent import Muscle
+import numpy as np
 
+def draw_layout(layout: GymLayout, ax: Optional[plt.Axes] = None, title="Gym layout", cmap_name="inferno", show=True) -> plt.Axes:
+    """Draw a gym layout, where each machine is a colored square.
+    If Muscle enum is roughly ordered by body part, it makes sense to use a sequential colormap
+    (see https://matplotlib.org/stable/users/explain/colors/colormaps.html#sequential)."""
+    if ax is None:
+        _, ax = plt.subplots()
 
-def draw_layout(layout: GymLayout):
-    raise NotImplementedError()
+    cmap = plt.get_cmap(cmap_name)
+    image = np.zeros(layout.shape + (4,))
+
+    for i, j in np.ndindex(layout.shape):
+        if (machine := layout[i, j]) is not None:
+            image[i, j] = cmap(machine.muscle.value / len(Muscle))
+
+    ax.imshow(np.transpose(image, (1, 0, 2)), origin='lower')
+    ax.axis('off')
+    ax.set_title(title)
+
+    if show: plt.show()
+    return ax
+    
 
 
 # Avoid interactive backend

@@ -10,6 +10,12 @@ from typing import List, Tuple
 from dataclasses import dataclass
 import numpy as np
 
+from visualisation import draw_layout
+import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('TkAgg')  # replace 'TkAgg' with the backend of your choice
+
+
 @dataclass
 class LayoutTemplate:
     """ordered collection of gym equipment locations"""
@@ -36,11 +42,11 @@ class LayoutTemplate:
 
     @staticmethod
     def circular(height: int, width: int) -> 'LayoutTemplate':
-        """machines along the walls, entrance at (x=1, y=0)"""
+        """machines along the walls, entrance at (x=width//2, y=0)"""
 
         walls = []
         for x in range(width):
-            if x != 1: walls.append((x, 0))
+            if x != width//2: walls.append((x, 0))
             walls.append((x, height-1))
         
         for y in range(1, height - 1):
@@ -51,20 +57,33 @@ class LayoutTemplate:
             locations=walls,
             gym_height=height,
             gym_width=width,
-            entrance=(1, 0),
+            entrance=(width//2, 0),
         )
     
     @staticmethod
-    def store_isles(height: int, width: int) -> 'LayoutTemplate':
-        """machines along the walls + isles (2x2 squares?) in the middle"""
-        raise NotImplementedError()
+    def square_isles(isle_rows: int, isle_cols: int) -> 'LayoutTemplate':
+        """machines along the walls + isles (2x2 squares) across the gym, entrance at bottom middle"""
+        tpl = LayoutTemplate.circular(
+            height=(isle_rows + 1) * 3,
+            width=(isle_cols + 1) * 3
+        )
+        # Add isles (2x2 squares) across the gym
+        for yBL in range(2, tpl.gym_height - 3, 3):
+            for xBL in range(2, tpl.gym_width - 3, 3):
+                tpl.locations.extend([(xBL, yBL), (xBL + 1, yBL), (xBL, yBL + 1), (xBL + 1, yBL + 1)])
+
+        return tpl
     
 
-def after_generation(ga_instance):
-    print(f"Finished generation {ga_instance.generations_completed}/{ga_instance.num_generations}")
-    util, inv_cong = ga_instance.best_solution()[1]
-    print(f"Best fitness: util={util:.2f}, ~cong={inv_cong:.2f}")
-    print()
+def print_evolution_progress(ga_instance):
+        print(f"Finished generation {ga_instance.generations_completed}/{ga_instance.num_generations}") 
+
+def plot_best_layout(ga_instance):
+    best_sol, fitness_vals, _ = ga_instance.best_solution(pop_fitness=ga_instance.last_generation_fitness)
+    best_layout = ga_instance.gym_layout_template.instantiate(machines=[Equipment(i) for i in best_sol])
+    draw_layout(
+        best_layout,
+        title=f"Best layout after {ga_instance.generations_completed}/{ga_instance.num_generations} gens, fitness={fitness_vals}")
 
 
 def gym_quality(ga_instance, solution, solution_idx) -> Tuple[float, float]:
@@ -80,15 +99,15 @@ def gym_quality(ga_instance, solution, solution_idx) -> Tuple[float, float]:
     
     gym = Gym(layout=layout, spawn_location=ga_instance.gym_layout_template.entrance, **ga_instance.gym_constructor_kwargs)
     
-    metrics = gym.run(ga_instance.simulation_steps)
+    metrics = gym.run(ga_instance.simulation_steps, progress_bar=False)
     avg_metrics = metrics.mean() # take average of columns (across time steps)
     return (avg_metrics["Utilization"], -avg_metrics["Congestion"])
     # return (avg_metrics["Utilization"], 1 / avg_metrics["Congestion"])
     # TODO: use mesa.batch_run for stat. significant cost function results (if there is a lot of randomness in gym model)
 
 
-def optimal_gym(layout_template: LayoutTemplate, n_generations: int,
-                simulation_cycle_steps: int, n_processes=0, **gym_kwargs
+def optimal_gym(layout_template: LayoutTemplate, n_generations: int, simulation_cycle_steps: int,
+                plot_layouts=False, n_processes=0, **gym_kwargs
                 ) -> Tuple[GymLayout, ...]:
     """
     Optimize the layout of a gym, constrained by the layout template.
@@ -111,7 +130,7 @@ def optimal_gym(layout_template: LayoutTemplate, n_generations: int,
         mutation_by_replacement=True, # only has effect if mutation_type="random"
         random_mutation_min_val=min_machine, # only has effect if mutation_type="random"
         random_mutation_max_val=max_machine, # only has effect if mutation_type="random"
-        on_generation=after_generation,
+        on_generation=(plot_best_layout if plot_layouts else print_evolution_progress),
         parallel_processing=("process", n_processes),
         num_generations=n_generations,
         
@@ -128,8 +147,8 @@ def optimal_gym(layout_template: LayoutTemplate, n_generations: int,
     )
     # TODO: sync random seed between GA and gyms?? https://pygad.readthedocs.io/en/latest/pygad_more.html#random-seed
 
-    if (nproc := ga_instance.parallel_processing[1]) is not None and nproc > ga_instance.sol_per_pop:
-        print(f"Warning: population size is smaller than number of processes") # TODO: figure out what is inferred if nproc=None
+    # if (nproc := ga_instance.parallel_processing[1]) is not None and nproc > ga_instance.sol_per_pop:
+    #     print(f"Warning: population size is smaller than number of processes") # TODO: figure out what is inferred if nproc=None
     
     # attach some parameters to the GA instance, so they can be accessed in fitness function (local function not pickle-able for multiprocessing)
     for attr in ["simulation_steps", "gym_layout_template", "gym_constructor_kwargs"]:
@@ -143,7 +162,7 @@ def optimal_gym(layout_template: LayoutTemplate, n_generations: int,
     ga_instance.run()
     print(f"Best fitness value reached after {ga_instance.best_solution_generation} generations.")
     ga_instance.plot_fitness(label=["utilization", "~congestion"])
-    # print("Pareto fronts (for multi-objective optimization):", ga_instance.pareto_fronts) # TODO: plot pareto fronts
+    # print("Pareto fronts:", len(ga_instance.pareto_fronts), [f.shape for f in ga_instance.pareto_fronts]) # TODO: plot pareto fronts
 
     solution, solution_fitness, solution_idx = ga_instance.best_solution() # FIXME: seems this line re-computes fitness
     best_layout = layout_template.instantiate(machines=[Equipment(i) for i in solution])
@@ -152,9 +171,10 @@ def optimal_gym(layout_template: LayoutTemplate, n_generations: int,
 
 if __name__ == "__main__":
     layout, fitness = optimal_gym(
-        layout_template=LayoutTemplate.circular(height=20, width=20),
-        n_processes=2,
-        simulation_cycle_steps=10, n_generations=3,
-        interarrival_time=1, agent_exercise_duration=1
+        layout_template=LayoutTemplate.square_isles(2, 4),
+        n_processes=0,
+        simulation_cycle_steps=300, n_generations=30,
+        interarrival_time=3, agent_exercise_duration=20
     )
-    # print(layout)
+
+    ax = draw_layout(layout, title="Optimal gym layout")

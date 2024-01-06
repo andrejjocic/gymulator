@@ -29,7 +29,7 @@ class State(Enum):
                 raise NotImplementedError(f"color of {self} not specified")
             
 
-Muscle = Enum("Muscle",
+Muscle = Enum("Muscle", start=0,
     names= """
     BICEPS TRICEPS
     FRONT_DELTS SIDE_DELTS REAR_DELTS
