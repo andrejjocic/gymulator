@@ -2,13 +2,12 @@ from mesa.experimental.jupyter_viz import *
 from gym_model import Gym, GymLayout
 from gym_agent import Muscle
 import numpy as np
+import matplotlib.pyplot as plt
 
-def draw_layout(layout: GymLayout, ax: Optional[plt.Axes] = None, title="Gym layout", cmap_name="inferno", show=True) -> plt.Axes:
+def draw_layout(layout: GymLayout, interactive=False, title="Gym layout", cmap_name="inferno", show=True) -> None:
     """Draw a gym layout, where each machine is a colored square.
     If Muscle enum is roughly ordered by body part, it makes sense to use a sequential colormap
     (see https://matplotlib.org/stable/users/explain/colors/colormaps.html#sequential)."""
-    if ax is None:
-        _, ax = plt.subplots()
 
     cmap = plt.get_cmap(cmap_name)
     image = np.zeros(layout.shape + (4,))
@@ -17,12 +16,17 @@ def draw_layout(layout: GymLayout, ax: Optional[plt.Axes] = None, title="Gym lay
         if (machine := layout[i, j]) is not None:
             image[i, j] = cmap(machine.muscle.value / len(Muscle))
 
-    ax.imshow(np.transpose(image, (1, 0, 2)), origin='lower')
-    ax.axis('off')
-    ax.set_title(title)
+    if interactive:
+        plt.ion()  # turn on interactive mode
 
-    if show: plt.show()
-    return ax
+    plt.imshow(np.transpose(image, (1, 0, 2)), origin='lower')
+    plt.axis('off')
+    plt.title(title)
+    
+    if interactive:
+        plt.draw()  # draw the current figure
+        plt.pause(0.001)  # pause for a short time to allow the figure to update
+        plt.ioff()  # turn off interactive mode when you're done
     
 
 

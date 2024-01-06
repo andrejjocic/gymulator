@@ -72,11 +72,9 @@ class EquipmentAgent(mesa.Agent):
 
     @property
     def portrayal(self) -> Dict[str, Any]:
-        free = self.model.agent_layer.is_cell_empty(self.pos)
-
         return {
             "s": 40,
-            "color": "green" if free else "red",
+            "color": "red" if self.model.occuped(self.pos) else "green",
             "alpha": 1,
             "marker": "p" # pentagon
         }
@@ -133,13 +131,19 @@ class Gym(mesa.Model):
 
         # set up data collection
         self.datacollector = mesa.datacollection.DataCollector(model_reporters={
-            "Utilization": lambda model: proportion_working(model),
-            "Congestion": lambda model: congestion_factor(model),
+            "Efficiency": proportion_working,
+            "Utilization": proportion_in_use,
+            "Congestion": congestion_factor,
         })
 
 
     def machine_at(self, cell: space.Coordinate) -> Optional[Equipment]:
         return self.equipment_layer[cell]
+    
+    @cached_property
+    def num_machines(self) -> int:
+        """number of machines in the gym"""
+        return np.count_nonzero(self.equipment_layer != None)
     
     @cached_property
     def machines_per_muscle(self) -> Counter:
@@ -188,17 +192,27 @@ class Gym(mesa.Model):
     def agents(self) -> List['GymRat']:
         return self.schedule.agents
     
+    @cached_property
+    def machine_positions(self) -> Set[space.Coordinate]:
+        """positions of all machines"""
+        return set(zip(*np.where(self.equipment_layer != None)))
+    
+    def occuped(self, pos: space.Coordinate) -> bool:
+        """whether there is an agent at the given position"""
+        return not self.agent_layer.is_cell_empty(pos)
+    
     @property
     def space(self) -> space._Grid:
         """space of gym elements (required by mesa visualization functions)"""
         elements = copy.deepcopy(self.agent_layer)
         i = self.spawned_agents
 
-        for pos, val in np.ndenumerate(self.equipment_layer):
-            if val is not None:
-                virtual_agent = EquipmentAgent(unique_id=i, model=self, type=val)
-                i += 1
-                elements.place_agent(virtual_agent, pos)
+        # for pos, val in np.ndenumerate(self.equipment_layer):
+        #     if val is not None:
+        for pos in self.machine_positions:
+            virtual_agent = EquipmentAgent(unique_id=i, model=self, type=self.machine_at(pos))
+            i += 1
+            elements.place_agent(virtual_agent, pos)
 
         # could use custom space_drawer in JupyterVis instead of this hack?
         # https://mesa.readthedocs.io/en/stable/tutorials/adv_tutorial_legacy.html
@@ -231,7 +245,12 @@ def proportion_working(model: Gym) -> float:
     """fraction of agents that are currently working out"""
     return sum(agent.state.name == "WORKING_OUT" for agent in model.agents) / len(model.agents)
 
+def proportion_in_use(model: Gym) -> float:
+    """fraction of machines that are currently in use"""
+    return sum(1 for pos in model.machine_positions if model.occuped(pos)) / model.num_machines
+
 def congestion_factor(model: Gym) -> float:
-    """maximum number of agents in a single cell"""
-    return max(len(content) for content, _ in model.agent_layer.coord_iter())
-    # TODO: try some other congestion metrics (ideally relative to gym size / number of agents?)
+    """maximum proportion of total agents in a single cell (from the ones not working out)"""
+    max_crowd = max(len(content) for content, pos in model.agent_layer.coord_iter() if pos not in model.machine_positions) 
+    not_working = sum(1 for agent in model.agents if agent.state.name != "WORKING_OUT")
+    return max_crowd / not_working if not_working > 0 else 0
