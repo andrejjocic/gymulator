@@ -12,10 +12,10 @@
 % {pnasmathematics} = Template for a one-column mathematics article
 % {pnasinvited} = Template for a PNAS invited submission
 
-\selectlanguage{slovene}
+\selectlanguage{english}
 % \etal{in sod.} % comment out when writing in english
-\renewcommand{\Authands}{ in } % comment out when writing in english
-\renewcommand{\Authand}{ in } % comment out when writing in english
+% \renewcommand{\Authands}{ in } % comment out when writing in english
+% \renewcommand{\Authand}{ in } % comment out when writing in english
 
 \newcommand{\set}[1]{\ensuremath{\mathbf{#1}}}
 \renewcommand{\vec}[1]{\ensuremath{\mathbf{#1}}}
@@ -31,7 +31,7 @@
 % Use letters for affiliations, numbers to show equal authorship (if applicable) and to indicate the corresponding author
 \author{Andrej Jočić}
 \author{Matic Stare}
-\author{Martin Starič}
+\author{Martin Starič} 
 
 \affil{Collective behaviour course research seminar report} 
 
@@ -41,7 +41,11 @@
 \selectlanguage{english}
 
 % Please add here a significance statement to explain the relevance of your work
-\significancestatement{Significance statement}{This report describes our work on gym layout optimisation. We begin with a brief overview of the problem and related work, followed by a description of our model and simulation. We conclude with a discussion of our results and future work.}
+\significancestatement{Significance statement}{
+    A common occurrence in gyms during peak hours is over-crowding of popular equipment and lots of wandering around searching for a free machine.
+Through simulating gym-goer behavior, we aimed to identify the most effective arrangement of exercise equipment to improve the flow, accessibility, and overall customer satisfaction.
+Our goal is to offer practical insights for gym owners, managers, and designers seeking to optimise their facility layout for the benefit of their clients and business success.
+}
 
 \selectlanguage{english}
 
@@ -113,14 +117,16 @@ We used Python's {\it Mesa} library for simulation, analysis, and visualization 
 \end{figure}
 
 
-A gym is represented as a subclass of \texttt{mesa.Model} with two discrete rectangular grids: the agent layer (where gym-goers move around) and the equipment layer (where machines are statically placed for one simulation cycle). The agents can only move around in cells that are not occupied by a piece of equipment, but there can be multiple agents in a single cell. We do not feel that agent collision resolution is necessary for realistic modelling of gym traffic. 
+A gym is represented as a subclass of \texttt{mesa.Model} with two rectangular cell grids: the agent layer (where gym-goers move around) and the equipment layer (where machines are statically placed for one simulation cycle).
 One cell on the grid's border serves as the locker area entrance, where agents enter the gym.
+The agents can only move around in cells that are not occupied by a piece of equipment, but there can be multiple agents in a single cell. We do not feel that agent collision resolution is necessary for realistic modelling of gym traffic. 
 
 For generating a concrete placement of machines, we have to assign certain cells to be equipment locations (where one machine is placed) while making sure we don't create unreachable areas. We have developed some basic layout templates mimicking the arrangement of isles in a grocery store, with sensible walkways in between. In this case, layout optimisation comes down to choosing the best assignment of machines to equipment locations.
 
 \subsection*{Gym-goer behaviour model}
 
-A gym-goer is represented as a subclass of \texttt{mesa.Agent} with a training checklist (multiset of muscles) and its current state.  The agent's goal is to exhaust the checklist as quickly as possible and exit the gym.
+A gym-goer is represented as a subclass of \texttt{mesa.Agent} with a training checklist (multiset of muscles) and its current state.
+The agent's goal is to exhaust the checklist as quickly as possible and exit the gym.
 
 A simulation cycle begins with an empty gym. Then, one agent is spawned at the entrance every $t_i$ time steps,
 where $t_i$ is a fixed inter-arrival time given as a parameter to the simulation.
@@ -137,40 +143,48 @@ After the time has elapsed, the agent re-enters state {\it searching} or exits t
 
 \subsection*{Layout optimisation}
 
-We formalized our problem as a constrained multi-objective optimisation problem, where a layout is constrained by a given layout template. This constraint makes the optimisation problem more tractable, and we can also ensure that no unreachable areas are ever created.
-We explored the space of possible layouts using genetic algorithms.
-We used Python's {\it PyGAD} library, since it supports multi-objective optimisation with the NSGA-II algorithm \cite{nsga2}. This converges to a set of Pareto-optimal solutions, meaning that no other solution can improve on any of the objectives without worsening at least one of the others.
-This way, we didn't have to combine optimisation objectives into one number with a weighted sum and thus decide the relative importance of each objective.
+We formalized our problem as a constrained multi-objective optimisation problem,
+where a layout is constrained by a given layout template.
+This constraint makes the optimisation problem more tractable,
+and we can also ensure that no unreachable areas are ever created.
+With multiple optimisation objectives, we didn't have to combine all aspects of a well-designed gym into one number and thus make arbitrary decisions about the relative importance of each aspect.
 
-A chromosome is a list of workout machines, which will be sequentially assigned to equipment locations in the layout template. We took care to ``unfold'' layout templates in a spatial-structure preserving way, so that $k$-point crossover preserves as much spatial structure as possible.
-% TODO: figure of how the isle template is unfolded
-optimisation begins with a set of random layouts.
-Then the fitness of each solution is evaluated by running a simulation cycle with the given layout and extracting some metrics (described in the next section). These metrics constitute the compound objective function.
+The procedure begins with a set of random layouts (meaning random assignments of machines to locations in the template),
+and evolves them with a genetic algorithm.
+We used Python's {\it PyGAD} library for genetic algorithms, since it supports multi-objective optimisation with the NSGA-II algorithm \cite{nsga2}. This converges to a set of Pareto-optimal solutions, meaning that no other solution can improve on any of the objectives without worsening at least one of the others.
 
-Note that random mutations and crossover can easily lead to layouts on which some of our hand-crafted workout routines cannot be completed; we simply discarded these layouts from the population by setting their fitness to negative infinity. In
-this way, roughly 15\% of solutions were discarded from each generation on average.
+A chromosome in our genetic algorithm is a list of exercise machines. To evaluate a chromosome, we first sequentially assign machines to locations in the layout template.
+The locations are ordered in a way that largely preserves the spatial structure of the template,
+so that a $k$-point crossover operation doesn't completely destroy the layout topology.
+For example, the 4-isle layout template (Figure \ref{fig:2x2_layout}) is ordered as follows: first come the locations around the walls in counter-clockwise order, starting from the bottom-left. Then, all the isles are traversed in row-major order.
 
-We used population sizes around 50. Since this is a complex optimisation problem, we would ideally use even larger ones, but we were limited by the performance of our simulation.
+After a gym is instantiated, its fitness values are calculated
+by running a simulation cycle on it and extracting selected metrics (described in the next section). These metrics constitute the compound objective function.
+Note that random mutations and crossover can easily lead to layouts on which some of our hand-crafted workout routines cannot be completed;
+we simply set their fitness to negative infinity, effectively discarding them from the population.
+In this way, roughly 15\% of solutions were discarded from each generation on average.
+
+We used population sizes around 50 in our experiments. Since this optimisation problem has a complex fitness landscape, we would ideally use even larger ones, but we were limited by the performance of our simulation.
+We used a relatively small inter-arrival time $t_i = 2$ to speed up the convergence of optimisation objectives, stopping each simulation after 300 steps.
+The random mutation rate was set to 15\%, and we selected the 2-point crossover operator.
 
 
 \subsubsection*{Objective functions} \label{sec:objectives}
 
 The layout quality metrics which we maximized were: 
 \begin{itemize}
-	\item agent {\it efficiency} (proportion of time spent exercising) averaged over all agents in the simulation,
-	\item gym {\it utilization} (proportion of machines in use) averaged over time steps, and
-	\item gym {\it crowdedness} (proportion of pairs of searching agents that are within 2 cells of each other)
-    averaged over time steps. This value had to be inverted, since PyGAD only supports maximization of the objective function.
+	\item agent {\it efficiency}: proportion of time spent exercising, averaged over all agents in the simulation cycle,
+	\item gym {\it utilization}: proportion of machines in use at any given time, averaged over the whole cycle, and
+	\item gym {\it crowdedness}: proportion of pairs of agents that are ``too close'' to each other at any given time. This was defined as having an inter-cell manhattan distance $\leq 2$, and computed only on agents in state {\it searching}.
+    After being averaged over the simulation cycle, this value also had to be inverted since PyGAD only supports fitness maximization.
 \end{itemize}
 
 
 
 \section*{Results}
 
-We tested our optimiser on a few small layout templates. First we used a template which has machines around the walls and two 2-by-2 islands of machines in the middle (Figure \ref{fig:layout_1}). With a random mutation rate of 15\% and two-point crossover, the optimiser converged at around 40 generations.
-We used a relatively small iter-arrival time $t_i = 2$ to make our optimisation objectives converge faster (we stopped at 250 time steps).
-
-Note that the utilization criterion (\ref{fig:fitness_1}, blue) decreases as the other two increase. This represents the trade-off between customer satisfaction and gym revenue, as an efficiently utilized gym is cheaper to set up and maintain, but ends up being more crowded.
+We tested our optimiser on a few small layout templates. First we used a template which has machines around the walls and two 2-by-2 islands of machines in the middle (Figure \ref{fig:layout_1}). The fitness functions converged at around 40 generations.
+Note that the utilization criterion (\ref{fig:fitness_1}, blue line) decreases as the other two increase. This represents the trade-off between customer satisfaction and gym revenue, as an efficiently utilized gym is cheaper to set up and maintain, but ends up being more crowded.
 
 \begin{figure}[H]
 	\begin{subfigure}{0.495\linewidth}
@@ -183,7 +197,7 @@ Note that the utilization criterion (\ref{fig:fitness_1}, blue) decreases as the
         \includegraphics[width=\textwidth]{layout_1.png}
         \caption{A Pareto-optimal gym layout. }\label{fig:layout_1}
     \end{subfigure}
-    \caption{optimisation constrained to a 2-island layout template. Machines (on the left) are labeled with name abbreviations, see the \texttt{Equipment} class in \texttt{gym\_model.py} on our GitHub repository \cite{gymulator} for the list of machines we used. See Figure \ref{fig:colormap} for interpretation of colors.}\label{fig:firstTest}
+    \caption{Optimisation constrained to a 2-island layout template. Machines (on the right) are labeled with name abbreviations, see the \texttt{Equipment} class in \texttt{gym\_model.py} on our GitHub repository \cite{gymulator} for the list of machines we used. See Figure \ref{fig:colormap} for an interpretation of the colors.}\label{fig:firstTest}
 \end{figure}
 
 \begin{figure}[h]
@@ -192,7 +206,7 @@ Note that the utilization criterion (\ref{fig:fitness_1}, blue) decreases as the
 	\caption{The colormap we used for visualizing a gym layout. Each machine is colored by the muscle it trains, where muscles are mapped onto the color spectrum in (roughly) the same order as they appear in the human body (from fingertips to heels).}\label{fig:colormap}
 \end{figure}
 
-Next, we ran the optimiser on a template with 4 islands of machines (Figure \ref{fig:2x2_layout}). Using the same parameters as before, the optimiser converged after around 110 generations. Due to the increased size of the gym and more complex search space, this experiment took quite a long time to run. Since we ran out of time for code optimisation, we were unable to try larger layout templates.
+Next, we ran the optimiser on a template with 4 islands of machines (Figure \ref{fig:2x2_layout}). Using the same parameters as before, the optimiser converged after around 110 generations. Due to increasing gym size and a more complex search space, the performance of our simulation prevented us from experimenting with larger layouts.
 
 \begin{figure}[H]
 	\begin{subfigure}{0.495\linewidth}
@@ -205,7 +219,7 @@ Next, we ran the optimiser on a template with 4 islands of machines (Figure \ref
         \includegraphics[width=\textwidth]{2x2_layout.png}
         \caption{A Pareto-optimal gym layout.}\label{fig:2x2_layout}
     \end{subfigure}
-    \caption{optimisation constrained to a 4-island layout template.}\label{fig:secondTest}
+    \caption{Optimisation constrained to a 4-island layout template.}\label{fig:secondTest}
 \end{figure}
 
 
@@ -214,7 +228,7 @@ Next, we ran the optimiser on a template with 4 islands of machines (Figure \ref
 
 We successfully implemented a gym layout optimisation framework, but our results stand only as a proof of concept.
 We made many simplifying assumptions which likely render our model too unrealistic to be of practical use.
-We didn't invest much time into code optimisation, so we couldn't perform a comprehensive analysis of the parameter space.
+Since we didn't invest much time into code optimisation, we couldn't perform comprehensive experiments.
  
 \subsection*{Future work} 
 
@@ -222,9 +236,9 @@ Our gym layout model could be made more realistic by dropping the constraints on
 We could also implement more fine-grained agent behaviour, such as parallel use of gym equipment (where one agent is working while the other is resting), random inter-arrival times (e.g. according to a Poisson process) and random exercise durations,
 as well as more realistic routine selection (perhaps with parameters estimated from real-world data).
 
-It would be interesting to let our optimiser come up with a layout from scratch (without hand-crafted templates).
-Perhaps this could be done with a Metropolis-Hastings state search variation, which has been successfully applied to urban layout optimisation \cite
-{feng2016crowd_drive_layout_design,mathew2019urban_walkability}.
+It would be interesting to let our optimiser come up with a layout from scratch, without the need for hand-crafted templates.
+Perhaps this could be done with a Metropolis-Hastings state search variation, which has been successfully applied to urban layout optimisation \cite{feng2016crowd_drive_layout_design,mathew2019urban_walkability}.
+Another interesting idea in ref. \cite{feng2016crowd_drive_layout_design} is the use of nonlinear regressors to predict the quality of a layout based on topological features, circumventing the need for computationally expensive simulations.
 We could also try to account for the cost of equipment (given by a gym designer) in the optimisation criteria.
 
 
