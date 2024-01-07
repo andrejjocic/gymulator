@@ -40,7 +40,7 @@ class LayoutTemplate:
 
 
     # factory methods
-    # NOTE: try to keep location spatially ordered so k-point crossover doesn't mess up the structure
+    # NOTE: try to keep locations spatially ordered so k-point crossover doesn't mess up the structure
 
     @staticmethod
     def circular(height: int, width: int) -> 'LayoutTemplate':

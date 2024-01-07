@@ -26,7 +26,7 @@
 
 \graphicspath{{./figures/}}
 
-\title{Simulation-driven gym layout optimization}
+\title{Simulation-driven gym layout optimisation}
 
 % Use letters for affiliations, numbers to show equal authorship (if applicable) and to indicate the corresponding author
 \author{Andrej Jočić}
@@ -79,24 +79,25 @@ This report describes our work on gym layout optimisation. We begin with a brief
 In this report we describe our work on gym layout optimisation.
 A common occurrence in gyms during peak hours is over-crowding of popular equipment and lots of wandering around searching for a free machine.
 Through simulating gym-goer behavior, we aimed to identify the most effective arrangement of exercise equipment to improve the flow, accessibility, and overall customer satisfaction.
-Our goal is to offer practical insights for gym owners, managers, and designers seeking to optimize their facility layout for the benefit of their clients and business success.
+Our goal is to offer practical insights for gym owners, managers, and designers seeking to optimise their facility layout for the benefit of their clients and business success.
 
 To simplify the problem
 we will limit ourselves to simulating the behaviour of bodybuilders (performing resistance exercises for muscle hypertrophy).
 In this case, a typical workout routine partitions the body into several sets of muscles, cycling through them on a per-workout basis.
 %This rotation can be done on a weekly schedule, or the workouts can be weekday-independent for greater flexibility. Popular splits include:
 To further simplify the problem, we will only simulate the
-\textit{push-pull-legs} (PPL) partitioning, which is a popular choice for beginners and intermediate lifters.
+\textit{push-pull-legs} (PPL) partitioning\footnote{
+    A {\it push} workout consists of pushing movements, mainly targeting the
+    chest, frontal deltoids (shoulders), and triceps. Pull muscles are those involved in pulling movements, such as the back musculature, rear deltoids, and biceps. The content of a leg workout is self-evident.
+}, which is a popular choice for beginners and intermediate lifters.
 We will model the gym as a rectangular grid of cells with pre-set equipment locations, distributed similarly as isles in a grocery store.
-%  - Push muscles are those involved in pushing movements,
-% 	such as the chest, frontal deltoids (shoulders), and triceps. Pull muscles are those involved in pulling movements, such as the back musculature, rear deltoids, and biceps. Legs are the lower body muscles, such as the quadriceps, hamstrings, and calves.
 % \end{itemize}
 
 
 \subsection*{Related work}
-The only publication related to gym layout optimization we could find was ref. \cite{turcine2022gym}, which assumed all gym clients had fixed-order workout routines (including ones with weight loss as a goal) and optimised a circular gym layout to minimise backward movement. Unfortunately, this does not give a good foundation for our work, as the assumptions diverge too far from what we are trying to model.
+The only publication related to gym layout optimisation we could find was ref. \cite{turcine2022gym}, which assumed all gym clients had fixed-order workout routines (including ones with weight loss as a goal) and optimised a circular gym layout to minimise backward movement. Unfortunately, this does not give a good foundation for our work, as the assumptions diverge too far from what we are trying to model.
 
-Thus we started from a crowd modelling review \cite{yang2020crowd_modelling_review} for basic model design principles. We also found two useful articles about incremental urban layout optimisation \cite{feng2016crowd_drive_layout_design, mathew2019urban_walkability} for inspiration.
+Thus we started from a crowd modelling review \cite{yang2020crowd_modelling_review} for basic model design principles. We also found two articles on incremental urban layout optimisation \cite{feng2016crowd_drive_layout_design, mathew2019urban_walkability} useful when designing the optimisation procedure, especially the cost function.
 
 \section*{Methods}
 
@@ -104,103 +105,130 @@ We used Python's {\it Mesa} library for simulation, analysis, and visualization 
 
 \subsection*{Gym layout model}
 
-A gym is represented as a subclass of \texttt{mesa.Model} with two discrete rectangular grids: the agent layer (where gym-goers move around) and the equipment layer (where machines are statically placed for one simulation cycle). The agents can only move around in cells that are not occupied by a piece of equipment, but there can be multiple agents in a single cell. We do not feel that agent collision resolution is necessary for realistic modelling of gym traffic. 
-One corner of the area serves as the locker area entrance, where agents enter and exit the gym.
+\begin{figure}[h]
+	\centering
+	\includegraphics[width=0.8\textwidth]{frozen_simulation_tpl.png}
+	\caption{A gym traffic simulation cycle frozen at 272 time steps. On the left we can see the gym environment, generated from a layout template with the entrance at the bottom. Red pentagons are occupied machines, while green ones are free. Agents that are currently walking around in search of a machine are shown with blue stars. On the right, we can see the time progression of one of our gym evaluation metrics (described in a later section).}
+    \label{fig:simulation_interface}
+\end{figure}
 
-For generating a concrete placement of machines, we have to assign certain cells to be equipment locations (where one machine is placed) while making sure we don't create unreachable areas. For a start, we will develop some layout templates mimicking the arrangement of isles in a grocery store, with sensible walkways in between. In this case, layout optimisation comes down to choosing the best assignment of machines to equipment locations.
+
+A gym is represented as a subclass of \texttt{mesa.Model} with two discrete rectangular grids: the agent layer (where gym-goers move around) and the equipment layer (where machines are statically placed for one simulation cycle). The agents can only move around in cells that are not occupied by a piece of equipment, but there can be multiple agents in a single cell. We do not feel that agent collision resolution is necessary for realistic modelling of gym traffic. 
+One cell on the grid's border serves as the locker area entrance, where agents enter the gym.
+
+For generating a concrete placement of machines, we have to assign certain cells to be equipment locations (where one machine is placed) while making sure we don't create unreachable areas. We have developed some basic layout templates mimicking the arrangement of isles in a grocery store, with sensible walkways in between. In this case, layout optimisation comes down to choosing the best assignment of machines to equipment locations.
 
 \subsection*{Gym-goer behaviour model}
 
 A gym-goer is represented as a subclass of \texttt{mesa.Agent} with a training checklist (multiset of muscles) and its current state.  The agent's goal is to exhaust the checklist as quickly as possible and exit the gym.
 
-When an agent is created, it is assigned a workout routine (eg. push) and a workout plan (eg. chest, chest, triceps, frontal deltoids). Routines will be sampled with probabilities based on our observations of people in our local gyms. The workout plans are constructed ad hoc, in keeping with general workout programming practice.
+A simulation cycle begins with an empty gym. Then, one agent is spawned at the entrance every $t_i$ time steps,
+where $t_i$ is a fixed inter-arrival time given as a parameter to the simulation.
+When an agent is created, it is assigned a workout routine (e.g. push) and a corresponding workout plan (e.g. chest, chest, triceps, frontal deltoids).
+In our experiments we sampled the routine selection from a uniform probability distribution.
+The workout plans are constructed ad hoc, in keeping with general workout programming practice.
+The agent also keeps track of the machines it has already used, so it can avoid using the same machine twice in one workout.
 
-Upon entering the gym, an agent starts in state {\it searching}, where it looks for a free piece of equipment it can use to check  any item off its checklist. In the current implementation, the agent moves around randomly until an appropriate machine appears in its field of view (as defined by a radius $r$ where $r=1$ means the 8 neighboring cells).
-In the future, we will implement more realistic searching movement, such as walking along a pre-defined exploration path around the gym (which for the right kind of layout template could be an eulerian cycle through corridors in the equipment layer), or actual pathfinding to the nearest free machine.
-
-When a free machine is found, the agent enters state {\it exercising} and occupies the machine for a certain amount of time.
-After the time has elapsed, the agent re-enters state {\it searching} or exits the gym if the checklist is empty.
+Upon entering the gym, an agent starts in state {\it searching}, where it looks for a free piece of equipment it can use to check any muscle off its training checklist. A path to the nearest free machine is found using the A* algorithm, which the agent begins to follow.
+If the target machine is no longer free upon arrival, the agent continues in state {\it searching}.
+When a free machine is found, the agent enters state {\it exercising} and occupies the machine for a certain amount of time. In our experiments, we used a deterministic exercise duration of 30 time steps for all exercises.
+After the time has elapsed, the agent re-enters state {\it searching} or exits the gym if it has completed its workout.
 
 
 \subsection*{Layout optimisation}
 
-We have not yet decided on a specific optimisation algorithm, but here we outline some of the possibilities we are considering.
+We formalized our problem as a constrained multi-objective optimisation problem, where a layout is constrained by a given layout template. This constraint makes the optimisation problem more tractable, and we can also ensure that no unreachable areas are ever created.
+We explored the space of possible layouts using genetic algorithms.
+We used Python's {\it PyGAD} library, since it supports multi-objective optimisation with the NSGA-II algorithm \cite{nsga2}. This converges to a set of Pareto-optimal solutions, meaning that no other solution can improve on any of the objectives without worsening at least one of the others.
+This way, we didn't have to combine optimisation objectives into one number with a weighted sum and thus decide the relative importance of each objective.
 
-We will begin the opitimisation with a random layout (or set of layouts) and apply some local optimisation. Given the right kind of layout template, we could try genetic algorithms.
-Alternatively, we will consider the Metropolis-Hastings algorithm which was successfully applied to urban layout optimisation \cite
-{feng2016crowd_drive_layout_design,mathew2019urban_walkability}.
+A chromosome is a list of workout machines, which will be sequentially assigned to equipment locations in the layout template. We took care to ``unfold'' layout templates in a spatial-structure preserving way, so that $k$-point crossover preserves as much spatial structure as possible.
+% TODO: figure of how the isle template is unfolded
+optimisation begins with a set of random layouts.
+Then the fitness of each solution is evaluated by running a simulation cycle with the given layout and extracting some metrics (described in the next section). These metrics constitute the compound objective function.
 
-\subsubsection*{Objective function}
+Note that random mutations and crossover can easily lead to layouts on which some of our hand-crafted workout routines cannot be completed; we simply discarded these layouts from the population by setting their fitness to negative infinity. In
+this way, roughly 15\% of solutions were discarded from each generation on average.
 
-The quality of a layout will be measured as a weighted sum of the following factors (determined in a simulation cycle): 
+We used population sizes around 50. Since this is a complex optimisation problem, we would ideally use even larger ones, but we were limited by the performance of our simulation.
+
+
+\subsubsection*{Objective functions} \label{sec:objectives}
+
+The layout quality metrics which we maximized were: 
 \begin{itemize}
-	\item proportion of time spent exercising (vs. searching or waiting around),
-	\item local gym crowdedness (eg. maximum number of agents in a single cell), and
-	\item an agent's ability to finish its workout in the amount of time it has available (eg. 1 hour).
+	\item agent {\it efficiency} (proportion of time spent exercising) averaged over all agents in the simulation,
+	\item gym {\it utilization} (proportion of machines in use) averaged over time steps, and
+	\item gym {\it crowdedness} (proportion of pairs of searching agents that are within 2 cells of each other)
+    averaged over time steps. This value had to be inverted, since PyGAD only supports maximization of the objective function.
 \end{itemize}
-We might also consider the cost of equipment (and its installation), though this is difficult to estimate in general and might make more sense as an input to our optimiser, given by a gym designer.
+
 
 
 \section*{Results}
 
-We started by trying to optimize gym layout with 2 machine islands. 
+We tested our optimiser on a few small layout templates. First we used a template which has machines around the walls and two 2-by-2 islands of machines in the middle (Figure \ref{fig:layout_1}). With a random mutation rate of 15\% and two-point crossover, the optimiser converged at around 40 generations.
+We used a relatively small iter-arrival time $t_i = 2$ to make our optimisation objectives converge faster (we stopped at 250 time steps).
 
+Note that the utilization criterion (\ref{fig:fitness_1}, blue) decreases as the other two increase. This represents the trade-off between customer satisfaction and gym revenue, as an efficiently utilized gym is cheaper to set up and maintain, but ends up being more crowded.
 
 \begin{figure}[H]
 	\begin{subfigure}{0.495\linewidth}
         \centering
         \includegraphics[width=\textwidth]{fitness_1.png}
-        \caption{Graph representing layout evolution.}\label{fig:fitness_1}
+        \caption{Evolution of fitness functions over generations.}\label{fig:fitness_1}
     \end{subfigure}
     \begin{subfigure}{0.495\linewidth}
         \centering
         \includegraphics[width=\textwidth]{layout_1.png}
-        \caption{Result layout of 2 machine islands.}\label{fig:layout_1}
+        \caption{A Pareto-optimal gym layout. }\label{fig:layout_1}
     \end{subfigure}
-    \caption{First test.}\label{fig:firstTest}
+    \caption{optimisation constrained to a 2-island layout template. Machines (on the left) are labeled with name abbreviations, see the \texttt{Equipment} class in \texttt{gym\_model.py} on our GitHub repository \cite{gymulator} for the list of machines we used. See Figure \ref{fig:colormap} for interpretation of colors.}\label{fig:firstTest}
 \end{figure}
 
+\begin{figure}[h]
+	\centering
+	\includegraphics[width=0.6\textwidth]{workoutTypeColormap.png}
+	\caption{The colormap we used for visualizing a gym layout. Each machine is colored by the muscle it trains, where muscles are mapped onto the color spectrum in (roughly) the same order as they appear in the human body (from fingertips to heels).}\label{fig:colormap}
+\end{figure}
 
+Next, we ran the optimiser on a template with 4 islands of machines (Figure \ref{fig:2x2_layout}). Using the same parameters as before, the optimiser converged after around 110 generations. Due to the increased size of the gym and more complex search space, this experiment took quite a long time to run. Since we ran out of time for code optimisation, we were unable to try larger layout templates.
 
 \begin{figure}[H]
 	\begin{subfigure}{0.495\linewidth}
         \centering
         \includegraphics[width=\textwidth]{2x2fitness.png}
-        \caption{Graph representing layout evolution.}\label{fig:2x2fitness}
+        \caption{Evolution of fitness functions over generations.}\label{fig:2x2fitness}
     \end{subfigure}
     \begin{subfigure}{0.495\linewidth}
         \centering
         \includegraphics[width=\textwidth]{2x2_layout.png}
-        \caption{Result layout of 2 machine islands.}\label{fig:2x2_layout}
+        \caption{A Pareto-optimal gym layout.}\label{fig:2x2_layout}
     \end{subfigure}
-    \caption{Second test.}\label{fig:secondTest}
+    \caption{optimisation constrained to a 4-island layout template.}\label{fig:secondTest}
 \end{figure}
 
-
-
-\begin{figure}[H]
-	\centering
-	\includegraphics[width=\textwidth]{workoutTypeColormap.png}
-	\caption{Colormap representing different muscles.}\label{fig:colormap}
-\end{figure}
 
 
 \section*{Discussion}
 
+We successfully implemented a gym layout optimisation framework, but our results stand only as a proof of concept.
+We made many simplifying assumptions which likely render our model too unrealistic to be of practical use.
+We didn't invest much time into code optimisation, so we couldn't perform a comprehensive analysis of the parameter space.
+ 
 \subsection*{Future work} 
 
-We could make our gym layout model more realistic with the addition of shared resources (eg. free weights next to a set of benches), compound machines (eg. a cable harness with multiple weight stacks) and multi-purpose equipment (eg. a squat rack with a pull-up bar), but none of this is a priority for now.
-It might be a lot more interesting to let our optimizer come up with a layout from scratch (without hand-crafted templates), but it's likely this will make the optimizer take too long to converge to anything sensible.
+Our gym layout model could be made more realistic by dropping the constraints on layout topology and adding support for shared resources (e.g. free weights) and multipurpose equipment.
+We could also implement more fine-grained agent behaviour, such as parallel use of gym equipment (where one agent is working while the other is resting), random inter-arrival times (e.g. according to a Poisson process) and random exercise durations,
+as well as more realistic routine selection (perhaps with parameters estimated from real-world data).
 
-We will also consider implementing more fine-grained agent behaviour, such as:
-\begin{itemize}
-	\item {\bf Parallel use of gym equipment:} A resistance exercise is usually performed as a sequence of (typically 3) {\it sets} where a movement is repeated some number of times, with short breaks in between. These breaks facilitate parallel use of gym equipment by two people, where one works out while the other rests. Note that this might involve time-consuming weight adjustment in between sets in case of differing strength levels, depending on the type of machine. Thus we will have to model a preference for free machines, even if it means greater travel distance for the agent.
-	\item {\bf Non-uniform arrival of agents:} In the current implementation, a simulation starts with all agents entering the gym at the same time. We will implement a more realistic arrival process, where agents arrive at a time-dependent rate which peaks in the early evening.
-	\item {\bf Smarter exercise selection:} An agent could exhibit preferences based on its immediate workout history. For example, it could try to avoid performing 2 chest exercises back-to-back in a push workout, since the chest fatigue will make the second exercise less effective.
-	\item {\bf Larger timescale of simulation cycles:} If we simulated several days of gym traffic, we could have agents persist across workouts and thus actually cycle through their workout routines (such as push, pull, legs or some alternative partitioning) instead of just assigning each agent a random workout upon creation.
-\end{itemize}
+It would be interesting to let our optimiser come up with a layout from scratch (without hand-crafted templates).
+Perhaps this could be done with a Metropolis-Hastings state search variation, which has been successfully applied to urban layout optimisation \cite
+{feng2016crowd_drive_layout_design,mathew2019urban_walkability}.
+We could also try to account for the cost of equipment (given by a gym designer) in the optimisation criteria.
 
-\acknow{Everyone worked on the report and gym-goer behaviour model. Andrej Jočić did stuff. Martin Starič implemented the pathfinding algorithm. Matic Stare made the project presentation.}
+
+\acknow{Everyone worked on the report and gym-goer behaviour model. Andrej Jočić worked on model implementation and the layout optimiser. Martin Starič implemented the pathfinding algorithm. Matic Stare made the project presentation.}
 
 \showacknow % Display the acknowledgments section
 

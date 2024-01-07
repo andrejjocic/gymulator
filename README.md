@@ -3,7 +3,7 @@
 This repository explores the problem of *gym layout optimisation*.
 A common occurence in gyms at peak hours is over-crowding of popular equipment and lots of wandering around searching for a free machine.
 Through simulating gym-goer behavior, we aim to identify the most effective arrangement of exercise equipment to improve the flow, accessibility, and overall customer satisfaction.
-Our goal is to offer practical insights for gym owners, managers, and designers seeking to optimize their facility layout for the benefit of their clients and business success.
+Our goal is to offer practical insights for gym owners, managers, and designers seeking to optimise their facility layout for the benefit of their clients and business success.
 
 
 ## Project structure
