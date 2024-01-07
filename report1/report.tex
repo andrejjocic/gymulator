@@ -5,6 +5,7 @@
 
 % \RequirePackage[english,slovene]{babel} % when writing in slovene
 \RequirePackage[slovene,english]{babel} % when writing in english
+\usepackage{subcaption}
 
 \templatetype{pnasresearcharticle} % Choose template 
 % {pnasresearcharticle} = Template for a two-column research article
@@ -23,7 +24,7 @@
 
 \newcommand{\num}[1]{#1}
 
-\graphicspath{{./fig/}}
+\graphicspath{{./figures/}}
 
 \title{Simulation-driven gym layout optimization}
 
@@ -40,7 +41,7 @@
 \selectlanguage{english}
 
 % Please add here a significance statement to explain the relevance of your work
-\significancestatement{TODO}{TODO1 | TODO2}
+\significancestatement{Significance statement}{This report describes our work on gym layout optimisation. We begin with a brief overview of the problem and related work, followed by a description of our model and simulation. We conclude with a discussion of our results and future work.}
 
 \selectlanguage{english}
 
@@ -54,8 +55,6 @@
 \keywords{gym layout | crowd simulation | gym-goer behaviour | gym traffic}
 \begin{abstract}
 This report describes our work on gym layout optimisation. We begin with a brief overview of the problem and related work, followed by a description of our model and simulation. We conclude with a discussion of our results and future work.
-
-\textbf{NOTE TO REVIEWERS:} TODOs will be replaced in the final version of the report.
 \end{abstract}
 
 \dates{\textbf{\today}}
@@ -143,12 +142,50 @@ We might also consider the cost of equipment (and its installation), though this
 
 
 \section*{Results}
-\textbf{TODO} % usaj en screenshot simulacije (caption: tole je janky random layout k ma unreachable areas)
+
+We started by trying to optimize gym layout with 2 machine islands. 
+
+
+\begin{figure}[H]
+	\begin{subfigure}{0.495\linewidth}
+        \centering
+        \includegraphics[width=\textwidth]{fitness_1.png}
+        \caption{Graph representing layout evolution.}\label{fig:fitness_1}
+    \end{subfigure}
+    \begin{subfigure}{0.495\linewidth}
+        \centering
+        \includegraphics[width=\textwidth]{layout_1.png}
+        \caption{Result layout of 2 machine islands.}\label{fig:layout_1}
+    \end{subfigure}
+    \caption{First test.}\label{fig:firstTest}
+\end{figure}
+
+
+
+\begin{figure}[H]
+	\begin{subfigure}{0.495\linewidth}
+        \centering
+        \includegraphics[width=\textwidth]{2x2fitness.png}
+        \caption{Graph representing layout evolution.}\label{fig:2x2fitness}
+    \end{subfigure}
+    \begin{subfigure}{0.495\linewidth}
+        \centering
+        \includegraphics[width=\textwidth]{2x2_layout.png}
+        \caption{Result layout of 2 machine islands.}\label{fig:2x2_layout}
+    \end{subfigure}
+    \caption{Second test.}\label{fig:secondTest}
+\end{figure}
+
+
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=\textwidth]{workoutTypeColormap.png}
+	\caption{Colormap representing different muscles.}\label{fig:colormap}
+\end{figure}
 
 
 \section*{Discussion}
-
-For now, we don't yet have any insightful results to discuss.
 
 \subsection*{Future work} 
 
@@ -163,10 +200,8 @@ We will also consider implementing more fine-grained agent behaviour, such as:
 	\item {\bf Larger timescale of simulation cycles:} If we simulated several days of gym traffic, we could have agents persist across workouts and thus actually cycle through their workout routines (such as push, pull, legs or some alternative partitioning) instead of just assigning each agent a random workout upon creation.
 \end{itemize}
 
-% see also todoist/future work
+\acknow{Everyone worked on the report and gym-goer behaviour model. Andrej Jočić did stuff. Martin Starič implemented the pathfinding algorithm. Matic Stare made the project presentation.}
 
-
-\acknow{Andrej Jočić wrote the simulation code. Matic Stare did stuff. Martin Starič did things. \textbf{(TODO)}}
 \showacknow % Display the acknowledgments section
 
 % \pnasbreak splits and balances the columns before the references.
