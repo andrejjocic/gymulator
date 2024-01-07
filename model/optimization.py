@@ -81,13 +81,16 @@ class LayoutTemplate:
         for yBL in range(2, tpl.gym_height - 3, 3):
             for xBL in range(2, tpl.gym_width - 3, 3):
                 tpl.locations.extend([(xBL, yBL), (xBL + 1, yBL), (xBL, yBL + 1), (xBL + 1, yBL + 1)])
+        # NOTE: maybe it would be better to order isles spiralling inwards CCW?
 
         return tpl
     
 
 def print_evolution_progress(ga_instance):
     _, fitness_vals, _ = ga_instance.best_solution(pop_fitness=ga_instance.last_generation_fitness)
-    print(f"Finished generation {ga_instance.generations_completed}/{ga_instance.num_generations}, fitness={fitness_vals}") 
+    print(f"INFO: discarded {ga_instance.discarded_sol_count}/{ga_instance.pop_size[0]} solutions")
+    print(f"Finished generation {ga_instance.generations_completed}/{ga_instance.num_generations}, max fitness={fitness_vals}") 
+    ga_instance.discarded_sol_count = 0
 
 
 def plot_best_layout(ga_instance):
@@ -117,7 +120,7 @@ def gym_quality(ga_instance, solution, solution_idx) -> Tuple[float, ...]:
 
     for routine in Routine:
         if not routine.muscle_groups <= total_machines:
-            print(f"not enough machines for {routine.name}, fitness = -inf")
+            ga_instance.discarded_sol_count += 1
             return (-np.inf,) * len(FITNESS_METRICS) # invalid solution (not enough machines for some routine)
             # could instead cull checklist (+ fitness penalty); or prevent with custom GA functions?
     
@@ -145,6 +148,7 @@ def optimal_gym(layout_template: LayoutTemplate,
     that is at least as large as the number of CPU threads (note that invalid gym layouts won't even use significant CPU time).
     - crossover_method: "single_point", "two_points", "uniform", "scattered", or None
     - mutation_method: "random", "swap", "scramble", "adaptive"
+    - tournament_participants: use None for normal (non-tournament) NSGA-II selection. Greater number -> more selection pressure
     - n_processes: number of processes to use for fitness function computation. 0 for sequential, None for default (calculated by concurrent.futures)
 
     Returns the best layout found, and its fitness values (higher is better).
@@ -175,17 +179,18 @@ def optimal_gym(layout_template: LayoutTemplate,
         mutation_type=mutation_method, 
         mutation_percent_genes=mutation_percents, 
         parent_selection_type=("nsga2" if tournament_participants is None else "tournament_nsga2"), 
-        K_tournament=tournament_participants, # parents participating in tournament (if any); greater K -> more selection pressure? TODO: better default
+        K_tournament=tournament_participants,
     )
     # TODO: sync random seed between GA and gyms?? https://pygad.readthedocs.io/en/latest/pygad_more.html#random-seed
     
     # attach some parameters to the GA instance, so they can be accessed in fitness function (local function not pickle-able for multiprocessing)
-    for attr in ["simulation_steps", "gym_layout_template", "gym_constructor_kwargs"]:
+    for attr in ["simulation_steps", "gym_layout_template", "gym_constructor_kwargs", "discarded_sol_count"]:
         assert not hasattr(ga_instance, attr)
 
     ga_instance.simulation_steps = simulation_cycle_steps
     ga_instance.gym_layout_template = layout_template
     ga_instance.gym_constructor_kwargs = gym_kwargs
+    ga_instance.discarded_sol_count = 0
 
     ga_instance.summary()
     ga_instance.run()
@@ -199,12 +204,10 @@ def optimal_gym(layout_template: LayoutTemplate,
 
 if __name__ == "__main__":
     layout, fitness = optimal_gym(
-        layout_template=LayoutTemplate.square_isles(isle_rows=1, isle_cols=2),
-        n_generations=100,
-        crossover_method="two_points", mutation_method="random",
-        population_size=16, n_processes=0,
-        mutation_percents=15,
-        tournament_participants=None,
+        layout_template=LayoutTemplate.square_isles(isle_rows=2, isle_cols=2),
+        n_generations=100, population_size=40, # large pop. probably more important than many gens (problem with lots of local optima)
+        crossover_method="two_points", tournament_participants=None,
+        mutation_method="random", mutation_percents=15,
         simulation_cycle_steps=250, interarrival_time=2, agent_exercise_duration=20,
         plot_intermediate_layouts=False,
     )
