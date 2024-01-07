@@ -3,10 +3,11 @@ from gym_model import Gym, GymLayout
 from gym_agent import Muscle
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 
-def draw_layout(layout: GymLayout, interactive=False, title="Gym layout", cmap_name="inferno", show=True) -> None:
+def draw_layout(layout: GymLayout, title="Gym layout", letters=True, interactive=False, cmap_name="inferno", show=True) -> None:
     """Draw a gym layout, where each machine is a colored square.
-    If Muscle enum is roughly ordered by body part, it makes sense to use a sequential colormap
+    Muscle enum is roughly ordered by body part, so prefer sequential colormap eg. "viridis", "plasma", "inferno", "magma", "cividis"
     (see https://matplotlib.org/stable/users/explain/colors/colormaps.html#sequential)."""
 
     cmap = plt.get_cmap(cmap_name)
@@ -14,7 +15,11 @@ def draw_layout(layout: GymLayout, interactive=False, title="Gym layout", cmap_n
 
     for i, j in np.ndindex(layout.shape):
         if (machine := layout[i, j]) is not None:
-            image[i, j] = cmap(machine.muscle.value / len(Muscle))
+            image[i, j] = cmap(bg_spectrum := machine.muscle.value / len(Muscle))
+            if letters:
+                words = machine.name.split("_")
+                lab = words[0].lower()[:3] if len(words) == 1 else "".join([w[0] for w in words])
+                plt.text(i, j, lab, c=cmap((bg_spectrum + .5) % 1), ha='center', va='center')
 
     if interactive:
         plt.ion()  # turn on interactive mode
@@ -22,7 +27,8 @@ def draw_layout(layout: GymLayout, interactive=False, title="Gym layout", cmap_n
     plt.imshow(np.transpose(image, (1, 0, 2)), origin='lower')
     plt.axis('off')
     plt.title(title)
-    
+    # TODO: optionally add annotated legend (the whole spectrum)
+
     if interactive:
         plt.draw()  # draw the current figure
         plt.pause(0.001)  # pause for a short time to allow the figure to update

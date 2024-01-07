@@ -29,13 +29,13 @@ class State(Enum):
                 raise NotImplementedError(f"color of {self} not specified")
             
 
-Muscle = Enum("Muscle", start=0,
+Muscle = Enum("Muscle", start=0, # NOTE: order roughly corresponds to the order of muscles in the body (for easier visualization)
     names= """
     BICEPS TRICEPS
-    FRONT_DELTS SIDE_DELTS REAR_DELTS
+    REAR_DELTS SIDE_DELTS FRONT_DELTS
     CHEST
     TRAPS LATS
-    QUADS HAMSTRINGS GLUTES CALVES"""
+    GLUTES HAMSTRINGS QUADS CALVES"""
 )
 
 class Routine(Enum):

@@ -39,19 +39,28 @@ class LayoutTemplate:
 
 
     # factory methods
+    # NOTE: try to keep location spatially ordered so k-point crossover doesn't mess up the structure
 
     @staticmethod
     def circular(height: int, width: int) -> 'LayoutTemplate':
-        """machines along the walls, entrance at (x=width//2, y=0)"""
-
+        """Machines along the walls, entrance at (x=width//2, y=0). Locations ordered counter-clockwise from bottom left."""
         walls = []
-        for x in range(width):
-            if x != width//2: walls.append((x, 0))
-            walls.append((x, height-1))
         
-        for y in range(1, height - 1):
-            walls.append((0, y))
+        # bottom wall
+        for x in range(1, width - 1):
+            if x != width//2: walls.append((x, 0))
+        
+        # right wall
+        for y in range(height):
             walls.append((width-1, y))
+
+        # top wall
+        for x in range(width - 2, 0, -1):
+            walls.append((x, height-1))
+
+        # left wall
+        for y in range(height - 1, -1, -1):
+            walls.append((0, y))
 
         return LayoutTemplate(
             locations=walls,
@@ -94,7 +103,7 @@ def gym_quality(ga_instance, solution, solution_idx) -> Tuple[float, float, floa
 
     for routine in Routine:
         if not routine.muscle_groups <= total_machines:
-            print(f"Invalid solution: not enough machines for {routine.name} routine (fitness = -inf)")
+            print(f"not enough machines for {routine.name}, fitness = -inf")
             return (-np.inf,) * 3 # invalid solution (not enough machines for some routine)
             # could instead cull checklist (+ fitness penalty); or prevent with custom GA functions?
     
@@ -109,6 +118,7 @@ def optimal_gym(layout_template: LayoutTemplate,
                 n_generations: int, simulation_cycle_steps: int,
                 population_size=8, n_processes=0,
                 crossover_method="single_point", mutation_method="random", tournament_selection=False,
+                parents_proportion=0.5, mutation_percents=10,
                 plot_intermediate_layouts=False, **gym_kwargs
                 ) -> Tuple[GymLayout, ...]:
     """
@@ -139,14 +149,15 @@ def optimal_gym(layout_template: LayoutTemplate,
         num_generations=n_generations,
         
         sol_per_pop=population_size,
-        num_parents_mating=population_size // 2,
+        num_parents_mating=round(population_size * parents_proportion),
         keep_elitism=0, # best k solutions kept in next gen (fitness values are cached)
         keep_parents=-1, # -1 to keep all, 0 disables fitness caching! (only has effect if keep_elitism=0)
         crossover_type=crossover_method, # k-point crossover probably bad for non-linear layout templates?
         
         mutation_type=mutation_method, 
+        mutation_percent_genes=mutation_percents, 
         parent_selection_type=("tournament_nsga2" if tournament_selection else "nsga2"), 
-        K_tournament=3, # parents participating in tournament (if any); greater K -> more selection pressure?
+        K_tournament=3, # parents participating in tournament (if any); greater K -> more selection pressure? TODO: better default
     )
     # TODO: sync random seed between GA and gyms?? https://pygad.readthedocs.io/en/latest/pygad_more.html#random-seed
     
@@ -163,7 +174,6 @@ def optimal_gym(layout_template: LayoutTemplate,
     print(f"Best fitness value reached after {ga_instance.best_solution_generation} generations.")
     ga_instance.plot_fitness(label=["utilization", "efficiency", "~congestion"])
     # print("Pareto fronts:", len(ga_instance.pareto_fronts), [f.shape for f in ga_instance.pareto_fronts]) # TODO: plot pareto fronts
-
     best_sol, fitness_vals, _ = ga_instance.best_solution(pop_fitness=ga_instance.last_generation_fitness)
     best_layout = layout_template.instantiate(machines=[Equipment(i) for i in best_sol])
     return best_layout, fitness_vals
@@ -171,14 +181,16 @@ def optimal_gym(layout_template: LayoutTemplate,
 
 if __name__ == "__main__":
     layout, fitness = optimal_gym(
-        layout_template=LayoutTemplate.square_isles(2, isle_cols=3),
-        n_generations=30,
-        crossover_method="two_points", mutation_method="random",
-        population_size=10, n_processes=0,
+        layout_template=LayoutTemplate.square_isles(1, isle_cols=2),
+        n_generations=60,
+        crossover_method="single_point", mutation_method="random",
+        population_size=16, n_processes=0,
+        mutation_percents=10,
+        tournament_selection=False,
         simulation_cycle_steps=300, interarrival_time=3, agent_exercise_duration=30,
         plot_intermediate_layouts=False,
     )
+
+    print(f"Solution fitness: {fitness}")
     draw_layout(layout, title="Optimal gym layout")
     plt.show()
-    print(f"Solution fitness: {fitness}")
-    # print(layout)
