@@ -10,6 +10,7 @@ from functools import cached_property
 from collections import Counter
 import pandas as pd
 from tqdm import tqdm
+import itertools
 
 
 class Equipment(Enum):
@@ -130,11 +131,17 @@ class Gym(mesa.Model):
         self.spawn_trainee()
 
         # set up data collection
-        self.datacollector = mesa.datacollection.DataCollector(model_reporters={
-            "Efficiency": proportion_working,
-            "Utilization": proportion_in_use,
-            "Congestion": congestion_factor,
-        })
+        self.datacollector = mesa.datacollection.DataCollector(
+            model_reporters={
+                # "Efficiency": proportion_working,
+                "Utilization": proportion_in_use,
+                "Congestion": crowdedness,
+                # "Travel": lambda model: model.total_travel_distance
+            },
+            agent_reporters={
+                "State": lambda agent: agent.state.name,
+            }
+        )
 
 
     def machine_at(self, cell: space.Coordinate) -> Optional[Equipment]:
@@ -228,8 +235,8 @@ class Gym(mesa.Model):
         self.schedule.step()
 
 
-    def run(self, num_steps: int, progress_bar=False) -> pd.DataFrame:
-        """run the model for a given number of steps and return the model-level metrics"""
+    def run(self, num_steps: int, progress_bar=False) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """run the model for a given number of steps and return (model-level metrics, agent-level metrics)"""
         if progress_bar:
             for _ in (pbar := tqdm(range(num_steps), desc="Simulating gym")):
                 self.step()
@@ -238,19 +245,41 @@ class Gym(mesa.Model):
             for _ in range(num_steps):
                 self.step()
         
-        return self.datacollector.get_model_vars_dataframe()
+        return self.datacollector.get_model_vars_dataframe(), self.datacollector.get_agent_vars_dataframe()
 
 
 def proportion_working(model: Gym) -> float:
     """fraction of agents that are currently working out"""
     return sum(agent.state.name == "WORKING_OUT" for agent in model.agents) / len(model.agents)
+    
 
 def proportion_in_use(model: Gym) -> float:
     """fraction of machines that are currently in use"""
     return sum(1 for pos in model.machine_positions if model.occuped(pos)) / model.num_machines
 
-def congestion_factor(model: Gym) -> float:
-    """maximum proportion of total agents in a single cell (from the ones not working out)"""
+def congestion_factor(model: Gym, normalize=False) -> float:
+    """maximum agents in a single cell (from the ones not working out)"""
     max_crowd = max(len(content) for content, pos in model.agent_layer.coord_iter() if pos not in model.machine_positions) 
-    not_working = sum(1 for agent in model.agents if agent.state.name != "WORKING_OUT")
-    return max_crowd / not_working if not_working > 0 else 0
+    if normalize:
+        not_working = sum(1 for agent in model.agents if agent.state.name != "WORKING_OUT")
+        return max_crowd / not_working if not_working > 0 else 0
+    else:
+        return max_crowd
+    
+
+def manhattan_distance(a: space.Coordinate, b: space.Coordinate) -> int:
+    return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+def crowdedness(model: Gym, distance_threshold=2) -> float:
+    """proportion of pairs of (idle) agents that are too close to each other (by inter-cell manhattan distance)"""
+    agent_positions = [agent.pos for agent in model.agents if agent.state.name != "WORKING_OUT"]
+    n = len(agent_positions)
+    if n < 2:
+        return 0
+    
+    too_close = 0
+    for a1, a2 in itertools.combinations(agent_positions, 2): # NOTE: could probably be optimized
+        if manhattan_distance(a1, a2) <= distance_threshold:
+            too_close += 1
+
+    return too_close / (n * (n - 1) / 2) # n choose 2
