@@ -1,6 +1,6 @@
 import pygad
-# import pygad.visualize
-# import pygad.utils
+import pygad.visualize
+import pygad.utils.nsga2 as nsga
 # import pygad.helper
 
 from gym_model import Gym, Equipment, machines_per_muscle, GymLayout
@@ -10,6 +10,9 @@ from typing import List, Tuple, Optional
 from dataclasses import dataclass
 import numpy as np
 import pandas as pd
+from pprint import pprint
+from enum import Enum, auto
+import pickle
 
 from visualisation import draw_layout
 import matplotlib.pyplot as plt
@@ -86,23 +89,6 @@ class LayoutTemplate:
         return tpl
     
 
-def print_evolution_progress(ga_instance):
-    _, fitness_vals, _ = ga_instance.best_solution(pop_fitness=ga_instance.last_generation_fitness)
-    print(f"INFO: discarded {ga_instance.discarded_sol_count}/{ga_instance.pop_size[0]} solutions")
-    print(f"Finished generation {ga_instance.generations_completed}/{ga_instance.num_generations}, max fitness={fitness_vals}") 
-    ga_instance.discarded_sol_count = 0
-
-
-def plot_best_layout(ga_instance):
-    best_sol, fitness_vals, _ = ga_instance.best_solution(pop_fitness=ga_instance.last_generation_fitness)
-    best_layout = ga_instance.gym_layout_template.instantiate(machines=[Equipment(i) for i in best_sol])
-    draw_layout(best_layout, interactive=True, title=
-                f"Best layout after {ga_instance.generations_completed}/{ga_instance.num_generations} gens,"
-                f"fitness={[round(f, 2) for f in fitness_vals]}")
-    
-
-FITNESS_METRICS = ["Efficiency", "Utilization", "~Congestion"]
-
 def efficiency_ratio(agent_df: pd.DataFrame) -> pd.Series:
     """proportion of time spent working out"""
     total_steps = agent_df.groupby("AgentID").size()
@@ -113,49 +99,85 @@ def efficiency_ratio(agent_df: pd.DataFrame) -> pd.Series:
     return efficiency_ratio
 
 
-def gym_quality(ga_instance, solution, solution_idx) -> Tuple[float, ...]:
-    """multi-objective fitness function for pygad (will be maximized)"""
-    layout = ga_instance.gym_layout_template.instantiate(machines=[Equipment(i) for i in solution])
-    total_machines = machines_per_muscle(layout)
+class GymMetric(Enum):
+    EFFICIENCY = auto()
+    CONGESTION = auto()
+    UTILIZATION = auto()
 
-    for routine in Routine:
-        if not routine.muscle_groups <= total_machines:
-            ga_instance.discarded_sol_count += 1
-            return (-np.inf,) * len(FITNESS_METRICS) # invalid solution (not enough machines for some routine)
-            # could instead cull checklist (+ fitness penalty); or prevent with custom GA functions?
-    
-    gym = Gym(layout=layout, spawn_location=ga_instance.gym_layout_template.entrance, **ga_instance.gym_constructor_kwargs)
-    # TODO: use mesa.batch_run for stat. significant cost function results (if there is a lot of randomness in gym model)
-    model_metrics, agent_metrics = gym.run(ga_instance.simulation_steps, progress_bar=False)
-    time_avg = model_metrics.mean() # take average of columns (across time steps)
-    return (
-        efficiency_ratio(agent_metrics).mean(),
-        time_avg["Utilization"],
-        1 - time_avg["Congestion"] # value from 0 to 1, higher is better
-    )
+    def fitness_value(self, model_avg: pd.Series, agent_df: pd.DataFrame) -> float:
+        """value from 0 to 1, to be maximized"""
+        match self:
+            case GymMetric.EFFICIENCY:
+                val = efficiency_ratio(agent_df).mean()
+            case GymMetric.CONGESTION:
+                val = model_avg["Congestion"]
+            case GymMetric.UTILIZATION:
+                val = model_avg["Utilization"]
+            case _:
+                raise ValueError(f"unsupported gym metric: {self}")
+            
+        return val if self.positive else 1 - val
+            
+    @property
+    def positive(self) -> bool:
+        """should this metric be maximized?"""
+        return self != GymMetric.CONGESTION
+
+    def __str__(self) -> str:
+        label = self.name.lower()
+        if not self.positive: label = "~" + label
+        return label
 
 
-def optimal_gym(layout_template: LayoutTemplate,
+def optimal_gyms(layout_template: LayoutTemplate,
                 n_generations: int, simulation_cycle_steps: int,
-                population_size=8, n_processes=0,
+                fitness_metrics: List[GymMetric] = [GymMetric.EFFICIENCY, GymMetric.UTILIZATION, GymMetric.CONGESTION],
+                population_size=46,
                 crossover_method="single_point", mutation_method="random", tournament_participants: Optional[int] = None,
                 parents_proportion=0.5, mutation_percents=10,
-                plot_intermediate_layouts=False, **gym_kwargs
-                ) -> Tuple[GymLayout, ...]:
+                plot_evolution=False, 
+                **gym_kwargs
+                ) -> List[Tuple[GymLayout, Tuple[float, ...]]]:
     """
     Optimize the layout of a gym with multi-objective genetic algorithm, constrained by the layout template.
-    If using parallel processing for fitness function evaluation, it probably makes sense to use a population size
-    that is at least as large as the number of CPU threads (note that invalid gym layouts won't even use significant CPU time).
     - crossover_method: "single_point", "two_points", "uniform", "scattered", or None
     - mutation_method: "random", "swap", "scramble", "adaptive"
     - tournament_participants: use None for normal (non-tournament) NSGA-II selection. Greater number -> more selection pressure
-    - n_processes: number of processes to use for fitness function computation. 0 for sequential, None for default (calculated by concurrent.futures)
 
-    Returns the best layout found, and its fitness values (higher is better).
-    """    
+    Returns the Pareto-optimal gym layouts and their fitness values.
+    """ 
+    def gym_quality(ga_instance, solution, solution_idx) -> Tuple[float, ...]:
+        """multi-objective fitness function for pygad (will be maximized)"""
+        nonlocal discarded_sol_count
+
+        layout = layout_template.instantiate(machines=[Equipment(i) for i in solution])
+        total_machines = machines_per_muscle(layout)
+
+        for routine in Routine:
+            if not routine.muscle_groups <= total_machines:
+                discarded_sol_count += 1
+                return [-np.inf] * len(fitness_metrics) # invalid solution (not enough machines for some routine)
+                # could instead cull checklist (+ fitness penalty); or prevent with custom GA functions?
+        
+        gym = Gym(layout=layout, spawn_location=layout_template.entrance, **gym_kwargs)
+        # TODO: use mesa.batch_run for stat. significant cost function results (if there is a lot of randomness in gym model)
+        model_metrics, agent_metrics = gym.run(simulation_cycle_steps, progress_bar=False)
+        time_avg = model_metrics.mean() # take average of columns (across time steps)
+        return [metric.fitness_value(time_avg, agent_metrics) for metric in fitness_metrics]
+    
+
+    def print_evolution_progress(ga_instance):
+        nonlocal discarded_sol_count
+        print(f"INFO: discarded {discarded_sol_count}/{ga_instance.pop_size[0]} solutions")
+        print(f"Finished generation {ga_instance.generations_completed}/{ga_instance.num_generations}") 
+        discarded_sol_count = 0
+        if plot_evolution:
+            col_maxes = np.max(ga_instance.last_generation_fitness, axis=0)
+            max_fits[ga_instance.generations_completed - 1] = col_maxes
+    
+
     min_machine = 0
     max_machine = len(Equipment) - 1
-
     ga_instance = pygad.GA(
         fitness_func=gym_quality,
         num_genes=len(layout_template),
@@ -166,10 +188,10 @@ def optimal_gym(layout_template: LayoutTemplate,
         mutation_by_replacement=True, # only has effect if mutation_type="random"
         random_mutation_min_val=min_machine, # only has effect if mutation_type="random"
         random_mutation_max_val=max_machine, # only has effect if mutation_type="random"
-        on_generation=(plot_best_layout if plot_intermediate_layouts else print_evolution_progress),
-        parallel_processing=("process", n_processes),
-        num_generations=n_generations,
+        on_generation=print_evolution_progress,
+        # save_best_solutions=True,
         
+        num_generations=n_generations,
         sol_per_pop=population_size,
         num_parents_mating=round(population_size * parents_proportion),
         keep_elitism=0, # best k solutions kept in next gen (fitness values are cached)
@@ -180,38 +202,62 @@ def optimal_gym(layout_template: LayoutTemplate,
         mutation_percent_genes=mutation_percents, 
         parent_selection_type=("nsga2" if tournament_participants is None else "tournament_nsga2"), 
         K_tournament=tournament_participants,
+        # TODO: sync random seed between GA and gyms?? https://pygad.readthedocs.io/en/latest/pygad_more.html#random-seed
     )
-    # TODO: sync random seed between GA and gyms?? https://pygad.readthedocs.io/en/latest/pygad_more.html#random-seed
-    
-    # attach some parameters to the GA instance, so they can be accessed in fitness function (local function not pickle-able for multiprocessing)
-    for attr in ["simulation_steps", "gym_layout_template", "gym_constructor_kwargs", "discarded_sol_count"]:
-        assert not hasattr(ga_instance, attr)
-
-    ga_instance.simulation_steps = simulation_cycle_steps
-    ga_instance.gym_layout_template = layout_template
-    ga_instance.gym_constructor_kwargs = gym_kwargs
-    ga_instance.discarded_sol_count = 0
-
     ga_instance.summary()
+
+    discarded_sol_count = 0
+    if plot_evolution: max_fits = np.empty((n_generations, len(fitness_metrics)))
     ga_instance.run()
-    print(f"Best fitness value reached after {ga_instance.best_solution_generation} generations.")
-    ga_instance.plot_fitness(label=FITNESS_METRICS)
-    # print("Pareto fronts:", len(ga_instance.pareto_fronts), [f.shape for f in ga_instance.pareto_fronts]) # TODO: plot pareto fronts
-    best_sol, fitness_vals, _ = ga_instance.best_solution(pop_fitness=ga_instance.last_generation_fitness)
-    best_layout = layout_template.instantiate(machines=[Equipment(i) for i in best_sol])
-    return best_layout, fitness_vals
+
+    # print(f"Best (individual) fitness value reached after {ga_instance.best_solution_generation} generations.")
+    if plot_evolution:                
+        plt.plot(max_fits)
+        plt.legend([str(metric) for metric in fitness_metrics])
+        plt.xlabel("Generation")
+        plt.ylabel("Fitness")
+        plt.ylim(0, 1)
+        plt.title("Max (objective-wise) fitness values over generations")
+        plt.show()
+
+    pareto_optimal_front = ga_instance.pareto_fronts[0]
+    best_solutions = []
+    for sol_idx, fitness in pareto_optimal_front:
+        sol = ga_instance.population[sol_idx]
+        best_solutions.append((layout_template.instantiate([Equipment(i) for i in sol]), fitness))
+
+    return best_solutions # TODO: sort them by crowding distance? (using ga_instance.crowding_distance)
 
 
 if __name__ == "__main__":
-    layout, fitness = optimal_gym(
-        layout_template=LayoutTemplate.square_isles(isle_rows=2, isle_cols=2),
-        n_generations=100, population_size=40, # large pop. probably more important than many gens (problem with lots of local optima)
-        crossover_method="two_points", tournament_participants=None,
-        mutation_method="random", mutation_percents=15,
-        simulation_cycle_steps=250, interarrival_time=2, agent_exercise_duration=20,
-        plot_intermediate_layouts=False,
-    )
+    isle_rows, isle_cols = 1, 2
+    template = LayoutTemplate.square_isles(isle_rows, isle_cols)
+    metrics = [GymMetric.EFFICIENCY, GymMetric.UTILIZATION, GymMetric.CONGESTION]
 
-    print(f"Solution fitness: {fitness}")
-    draw_layout(layout, title="Optimal gym layout")
+    gyms = optimal_gyms(
+        layout_template=template,
+        fitness_metrics=metrics,
+        n_generations=100, population_size=50,
+        crossover_method="two_points", tournament_participants=None,
+        mutation_percents=15,
+        plot_evolution=True,
+        simulation_cycle_steps=250, interarrival_time=2, agent_exercise_duration=30,
+    )
+    print(f"Found {len(gyms)} Pareto-optimal gyms.")
+
+    
+    fig, ax = plt.subplots(nrows=len(metrics), ncols=2, width_ratios=[1, 0.5])
+    
+    for i, metric in enumerate(metrics):
+        best_gym, fits = max(gyms, key=lambda gym_fitness: gym_fitness[1][i])
+        draw_layout(best_gym, ax[i, 0], title=f"Layout with best {metric}")
+        ax[i, 1].bar(range(len(fits)), fits, tick_label=list(map(str, metrics)))
+        ax[i, 1].set_ylim(0, 1)
+        ax[i, 1].set_ylabel('Value')
+        ax[i, 1].set_title('Fitness Values')
+
+        # TODO: pickle the best gym layouts (put metric in filename)
+        name = f"model/layouts/best_{isle_rows}x{isle_cols}_gym_{metric}"
+        np.save(name, best_gym)
+
     plt.show()

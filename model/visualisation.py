@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
-def draw_layout(layout: GymLayout, title="Gym layout", letters=True, interactive=False, cmap_name="inferno", show=True) -> None:
+def draw_layout(layout: GymLayout, ax: plt.Axes, title="Gym layout", letters=True, cmap_name="inferno") -> None:
     """Draw a gym layout, where each machine is a colored square.
     Muscle enum is roughly ordered by body part, so prefer sequential colormap eg. "viridis", "plasma", "inferno", "magma", "cividis"
     (see https://matplotlib.org/stable/users/explain/colors/colormaps.html#sequential)."""
@@ -19,20 +19,13 @@ def draw_layout(layout: GymLayout, title="Gym layout", letters=True, interactive
             if letters:
                 words = machine.name.split("_")
                 lab = words[0].lower()[:3] if len(words) == 1 else "".join([w[0] for w in words])
-                plt.text(i, j, lab, c=cmap((bg_spectrum + .5) % 1), ha='center', va='center')
+                ax.text(i, j, lab, c=cmap((bg_spectrum + .5) % 1), ha='center', va='center')
 
-    if interactive:
-        plt.ion()  # turn on interactive mode
 
-    plt.imshow(np.transpose(image, (1, 0, 2)), origin='lower')
-    plt.axis('off')
-    plt.title(title)
+    ax.imshow(np.transpose(image, (1, 0, 2)), origin='lower')
+    ax.set_axis_off()
+    ax.set_title(title)
     # TODO: optionally add annotated legend (the whole spectrum)
-
-    if interactive:
-        plt.draw()  # draw the current figure
-        plt.pause(0.001)  # pause for a short time to allow the figure to update
-        plt.ioff()  # turn off interactive mode when you're done
     
 
 
