@@ -13,6 +13,7 @@ import pandas as pd
 from pprint import pprint
 from enum import Enum, auto
 import pickle
+from tqdm import tqdm
 
 from visualisation import draw_layout
 import matplotlib.pyplot as plt
@@ -129,20 +130,25 @@ class GymMetric(Enum):
         return label
 
 
-def optimal_gyms(layout_template: LayoutTemplate,
-                n_generations: int, simulation_cycle_steps: int,
-                fitness_metrics: List[GymMetric] = [GymMetric.EFFICIENCY, GymMetric.UTILIZATION, GymMetric.CONGESTION],
-                population_size=46,
-                crossover_method="single_point", mutation_method="random", tournament_participants: Optional[int] = None,
-                parents_proportion=0.5, mutation_percents=10,
-                plot_evolution=False, 
-                **gym_kwargs
-                ) -> List[Tuple[GymLayout, Tuple[float, ...]]]:
+def optimal_gyms(
+    layout_template: LayoutTemplate,
+    fitness_metrics: List[GymMetric] = [GymMetric.EFFICIENCY, GymMetric.UTILIZATION, GymMetric.CONGESTION],
+    simulation_cycle_steps=300,
+    plot_evolution=False, 
+    n_generations=100,
+    population_size=46,
+    parents_proportion=0.5,
+    tournament_participants: Optional[int] = None,
+    crossover_method="single_point",
+    mutation_method="random",
+    mutation_percents=10,
+    **gym_kwargs
+    ) -> List[Tuple[GymLayout, Tuple[float, ...]]]:
     """
     Optimize the layout of a gym with multi-objective genetic algorithm, constrained by the layout template.
+    - tournament_participants: use None for normal (non-tournament) NSGA-II selection. Greater number -> more selection pressure
     - crossover_method: "single_point", "two_points", "uniform", "scattered", or None
     - mutation_method: "random", "swap", "scramble", "adaptive"
-    - tournament_participants: use None for normal (non-tournament) NSGA-II selection. Greater number -> more selection pressure
 
     Returns the Pareto-optimal gym layouts and their fitness values.
     """ 
@@ -229,10 +235,66 @@ def optimal_gyms(layout_template: LayoutTemplate,
     return best_solutions # TODO: sort them by crowding distance? (using ga_instance.crowding_distance)
 
 
+def baseline_optimizer(
+        layout_template: LayoutTemplate,
+        fitness_metrics: List[GymMetric],
+        max_iterations: int,
+        simulation_cycle_steps: int,
+        plot_evolution=False, 
+        **gym_kwargs
+    ) -> ...:
+    """just generate random gym layouts and keep track of the best ones"""
+
+    def gym_quality(solution) -> Tuple[float, ...]:
+        layout = layout_template.instantiate(machines=[Equipment(i) for i in solution])
+        total_machines = machines_per_muscle(layout)
+
+        for routine in Routine:
+            if not routine.muscle_groups <= total_machines:
+                return {metric: -np.inf for metric in fitness_metrics}
+        
+        gym = Gym(layout=layout, spawn_location=layout_template.entrance, **gym_kwargs)
+        model_metrics, agent_metrics = gym.run(simulation_cycle_steps, progress_bar=False)
+        time_avg = model_metrics.mean() # take average of columns (across time steps)
+        return {metric: metric.fitness_value(time_avg, agent_metrics) for metric in fitness_metrics}
+    
+    
+    best_wrt = {metric: (None, -np.inf) for metric in fitness_metrics}
+    plot_data = {metric: [] for metric in fitness_metrics}
+
+    for i in tqdm(range(max_iterations)):
+        sol = np.random.randint(0, len(Equipment), size=len(layout_template))
+        fitness = gym_quality(sol)
+        for metric in fitness_metrics:
+            if fitness[metric] > best_wrt[metric][1]:
+                best_wrt[metric] = (sol, fitness[metric])
+                last_change = i
+                plot_data[metric].append((i, fitness[metric]))
+
+    print(f"Objective maxima fixed since iteration {last_change}")
+    if plot_evolution:
+        for metric in fitness_metrics:
+            plt.plot(*zip(*plot_data[metric]), label=str(metric))
+        plt.legend()
+        plt.xlabel("Iteration")
+        plt.ylabel("Fitness")
+        # plt.ylim(0, 1)
+        plt.title("Fitness values over iterations")
+        plt.show()
+    
+    return {metric: (layout_template.instantiate([Equipment(i) for i in sol]), fitness)
+            for metric, (sol, fitness) in best_wrt.items()}
+
+
 if __name__ == "__main__":
-    isle_rows, isle_cols = 1, 2
-    template = LayoutTemplate.square_isles(isle_rows, isle_cols)
+    isle_rows, isle_cols = 2, 2
     metrics = [GymMetric.EFFICIENCY, GymMetric.UTILIZATION, GymMetric.CONGESTION]
+    gym_kwargs = dict(interarrival_time=2, agent_exercise_duration=30)
+
+    template = LayoutTemplate.square_isles(isle_rows, isle_cols)
+
+    # layouts = baseline_optimizer(template, metrics, max_iterations=500, simulation_cycle_steps=250, plot_evolution=True, **gym_kwargs)
+    # print({metric: fitness for metric, (_, fitness) in layouts.items()})
 
     gyms = optimal_gyms(
         layout_template=template,
@@ -241,10 +303,9 @@ if __name__ == "__main__":
         crossover_method="two_points", tournament_participants=None,
         mutation_percents=15,
         plot_evolution=True,
-        simulation_cycle_steps=250, interarrival_time=2, agent_exercise_duration=30,
+        simulation_cycle_steps=250, **gym_kwargs
     )
     print(f"Found {len(gyms)} Pareto-optimal gyms.")
-
     
     fig, ax = plt.subplots(nrows=len(metrics), ncols=2, width_ratios=[1, 0.5])
     
@@ -256,7 +317,6 @@ if __name__ == "__main__":
         ax[i, 1].set_ylabel('Value')
         ax[i, 1].set_title('Fitness Values')
 
-        # TODO: pickle the best gym layouts (put metric in filename)
         name = f"model/layouts/best_{isle_rows}x{isle_cols}_gym_{metric}"
         np.save(name, best_gym)
 
